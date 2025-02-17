@@ -54,17 +54,17 @@ jobs:
             sh -c '
             aws ecr get-login-password --region ${{ vars.AWS_REGION }} | \
             docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
-            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/wiphala:latest
+            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/monitor:latest
 
             # Stop and remove any running container with the same name
-            docker stop wiphala || true
-            docker rm wiphala || true
+            docker stop monitor || true
+            docker rm monitor || true
 
             # Generate a UUID for awslogs-stream
             LOG_STREAM_UUID=$(uuidgen)
 
             # Run the new container
-            docker run -d --name wiphala \
+            docker run -d --name monitor \
             -p 3004:3000 \
             -e AWS_REGION=${{ vars.AWS_REGION }} \
             -e AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }} \
@@ -78,5 +78,5 @@ jobs:
             --log-opt awslogs-group=${{ vars.LOGS_GROUP }} \
             --log-opt awslogs-stream="$LOG_STREAM_UUID" \
             -v ~/.aws:/root/.aws:ro \
-            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/wiphala:latest
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/monitor:latest
             '
