@@ -70,7 +70,7 @@ jobs:
             -e DB_CREDENTIALS="${{ secrets.DB_CREDENTIALS }}" \
             -e BUCKET_NAME="${{ secrets.BUCKET_NAME }}" \
             -e ASSETS_BUCKET_NAME="${{ secrets.ASSETS_BUCKET_NAME }}" \
-            -e monitor_FQDN="${{ vars.MONITOR_FQDN }}" \
+            -e SERVICE_FQDN="${{ vars.SERVICE_FQDN }}" \
             -e CONTAINERIZED=true \
             --restart=always \
             --log-driver=awslogs \
