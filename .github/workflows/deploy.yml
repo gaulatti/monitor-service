@@ -51,31 +51,32 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
+            sh -c '
             aws ecr get-login-password --region ${{ vars.AWS_REGION }} | \
             docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
-            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/monitor:latest
+            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/wiphala:latest
 
             # Stop and remove any running container with the same name
-            docker stop monitor || true
-            docker rm monitor || true
+            docker stop wiphala || true
+            docker rm wiphala || true
+
+            # Generate a UUID for awslogs-stream
+            LOG_STREAM_UUID=$(uuidgen)
 
             # Run the new container
-            docker run -d --name monitor \
-            -p 3001:3000 \
+            docker run -d --name wiphala \
+            -p 3004:3000 \
             -e AWS_REGION=${{ vars.AWS_REGION }} \
             -e AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }} \
-            -e CASUAL_TRIGGER_LAMBDA_ARN=${{ secrets.CASUAL_TRIGGER_LAMBDA_ARN }} \
             -e COGNITO_USER_POOL_ID=${{ secrets.COGNITO_USER_POOL_ID }} \
-            -e ALLOWED_TOPICS="${{ secrets.ALLOWED_TOPICS }}" \
             -e DB_CREDENTIALS="${{ secrets.DB_CREDENTIALS }}" \
-            -e BUCKET_NAME="${{ secrets.BUCKET_NAME }}" \
-            -e ASSETS_BUCKET_NAME="${{ secrets.ASSETS_BUCKET_NAME }}" \
             -e SERVICE_FQDN="${{ vars.SERVICE_FQDN }}" \
             -e CONTAINERIZED=true \
             --restart=always \
             --log-driver=awslogs \
             --log-opt awslogs-region=${{ vars.AWS_REGION }} \
             --log-opt awslogs-group=${{ vars.LOGS_GROUP }} \
-            --log-opt awslogs-stream=${{ vars.LOGS_STREAM }} \
+            --log-opt awslogs-stream="$LOG_STREAM_UUID" \
             -v ~/.aws:/root/.aws:ro \
-            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/monitor:latest
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/wiphala:latest
+            '
