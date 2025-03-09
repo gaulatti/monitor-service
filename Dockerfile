@@ -29,8 +29,12 @@ RUN npm run build
 ARG GRPC_PORT=50051
 ENV GRPC_PORT=${GRPC_PORT}
 
+# Set HTTP_PORT default value (can be overridden by environment)
+ARG HTTP_PORT=3000
+ENV HTTP_PORT=${HTTP_PORT}
+
 # Dynamically expose the gRPC port based on environment variables
-EXPOSE 3000
+EXPOSE ${HTTP_PORT}
 EXPOSE ${GRPC_PORT}
 
 # Start the server as the default command

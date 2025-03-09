@@ -1,17 +1,18 @@
-import { networkInterfaces } from 'os';
 import { config } from 'dotenv';
+import { networkInterfaces } from 'os';
 config();
 
 /**
- * The port number for the gRPC server.
+ * The port number for the gRPC and HTTP servers.
  *
- * This value is retrieved from the environment variable `GRPC_PORT`.
- * If the environment variable is not set, it defaults to `50051`.
+ * This value is retrieved from the environment variables `GRPC_PORT` and `HTTP_PORT.
+ * If the environment variables are not set, they default to `50051` and `3000`.
  *
  * @constant
  * @type {number}
  */
 const grpcPort: number = Number(process.env.GRPC_PORT) || 50051;
+const httpPort: number = Number(process.env.HTTP_PORT) || 3000;
 
 /**
  * Retrieves the local IPv4 address of the machine.
@@ -40,14 +41,14 @@ const getLocalIp = (): string => {
  * Retrieves the gRPC talkback endpoint URL.
  *
  * This function constructs the gRPC talkback endpoint URL based on the environment configuration.
- * If the `SERVICE_FQDN` environment variable is set, it uses that value as the hostname.
+ * If the `TALKBACK_FQDN` environment variable is set, it uses that value as the hostname.
  * Otherwise, it falls back to using the local IP address.
  *
  * @returns {string} The gRPC talkback endpoint URL.
  */
 const getGrpcTalkbackEndpoint = (): string => {
   if (process.env.SERVICE_FQDN) {
-    return `http://${process.env.TALKBACK_HOST}:${grpcPort}`;
+    return `http://${process.env.TALKBACK_FQDN}:${grpcPort}`;
   }
 
   const ip = getLocalIp();
@@ -73,4 +74,4 @@ const getHostAndPort = (input: string): { hostname: string; port: number } => {
   }
 };
 
-export { getGrpcTalkbackEndpoint, getHostAndPort, grpcPort };
+export { getGrpcTalkbackEndpoint, getHostAndPort, grpcPort, httpPort };

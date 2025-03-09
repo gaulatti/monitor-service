@@ -8,7 +8,7 @@ import {
 import { join } from 'path';
 import { AppModule } from './app.module';
 import { AuthorizationGuard } from './authorization/authorization.guard';
-import { grpcPort } from './utils/network';
+import { grpcPort, httpPort } from './utils/network';
 
 /**
  * Initializes and starts the NestJS application with Fastify adapter.
@@ -55,10 +55,10 @@ async function bootstrap(): Promise<void> {
   Logger.log(`🚀 gRPC server running on port ${grpcPort}`);
 
   /**
-   * Start the application and listen on port 3000
+   * Start the application.
    */
-  await app.listen(process.env.PORT || 3000, '0.0.0.0');
-  Logger.log(`🚀 REST API running on port ${process.env.PORT}`);
+  await app.listen(httpPort, '0.0.0.0');
+  Logger.log(`🚀 REST API running on port ${httpPort}`);
 }
 
 bootstrap();
