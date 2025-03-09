@@ -66,6 +66,7 @@ jobs:
             # Run the new container
             docker run -d --name monitor \
             -p 3004:3000 \
+            -p 50053:50051 \
             -e AWS_REGION=${{ vars.AWS_REGION }} \
             -e AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }} \
             -e COGNITO_USER_POOL_ID=${{ secrets.COGNITO_USER_POOL_ID }} \

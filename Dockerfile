@@ -27,6 +27,7 @@ RUN npm run build
 
 # Expose the application port
 EXPOSE 3000
+EXPOSE 50051
 
 # Start the server as the default command
 CMD ["node", "dist/main"]
