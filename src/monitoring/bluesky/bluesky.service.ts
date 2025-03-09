@@ -51,7 +51,7 @@ export class BlueskyService {
         client.triggerPlaylist(
           {
             slug: process.env.WIPHALA_SLUG!,
-            context: JSON.stringify({}),
+            context: JSON.stringify({ keyword: 'earthquake' }),
             origin: getGrpcTalkbackEndpoint(),
           },
           (err, response) => {
