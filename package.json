@@ -41,7 +41,7 @@
     "@nestjs/sequelize": "^11.0.0",
     "jwks-rsa": "^3.1.0",
     "mysql2": "^3.13.0",
-    "nanoid": "^5.1.3",
+    "nanoid": "^3.3.8",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
