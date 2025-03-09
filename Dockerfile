@@ -25,9 +25,13 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Expose the application port
+# Set GRPC_PORT default value (can be overridden by environment)
+ARG GRPC_PORT=50051
+ENV GRPC_PORT=${GRPC_PORT}
+
+# Dynamically expose the gRPC port based on environment variables
 EXPOSE 3000
-EXPOSE 50051
+EXPOSE ${GRPC_PORT}
 
 # Start the server as the default command
 CMD ["node", "dist/main"]

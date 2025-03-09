@@ -1,4 +1,6 @@
 import { networkInterfaces } from 'os';
+import { config } from 'dotenv';
+config();
 
 /**
  * The port number for the gRPC server.

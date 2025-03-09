@@ -66,13 +66,16 @@ jobs:
             # Run the new container
             docker run -d --name monitor \
             -p 3004:3000 \
-            -p 50053:50051 \
+            -p ${{ vars.GRPC_PORT }}:${{ vars.GRPC_PORT }} \
             -e AWS_REGION=${{ vars.AWS_REGION }} \
             -e AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }} \
             -e COGNITO_USER_POOL_ID=${{ secrets.COGNITO_USER_POOL_ID }} \
             -e DB_CREDENTIALS="${{ secrets.DB_CREDENTIALS }}" \
             -e DB_DATABASE="${{ secrets.DB_DATABASE }}" \
             -e SERVICE_FQDN="${{ vars.SERVICE_FQDN }}" \
+            -e GRPC_PORT="${{ vars.GRPC_PORT }}" \
+            -e WIPHALA_SLUG="${{ secrets.WIPHALA_SLUG }}" \
+            -e WIPHALA_URL="${{ secrets.WIPHALA_URL }}" \
             -e CONTAINERIZED=true \
             --restart=always \
             --log-driver=awslogs \
