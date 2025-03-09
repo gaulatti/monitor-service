@@ -33,7 +33,7 @@ export class BlueskyController {
    */
   @GrpcMethod('ClientService', 'Deliver')
   async deliver(data: DeliverRequest): Promise<DeliverResponse> {
-    console.log({ data });
+    // TODO: Process data
     return Promise.resolve({ success: true });
   }
 }
