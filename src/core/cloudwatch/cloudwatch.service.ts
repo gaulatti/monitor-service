@@ -3,7 +3,9 @@ import {
   PutMetricDataCommand,
   StandardUnit,
 } from '@aws-sdk/client-cloudwatch';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { Logger } from 'src/decorators/logger.decorator';
+import { JSONLogger } from 'src/utils/logger';
 
 /**
  * Service for interacting with AWS CloudWatch to send custom metrics.
@@ -20,9 +22,10 @@ import { Injectable, Logger } from '@nestjs/common';
 @Injectable()
 export class CloudWatchService {
   /**
-   * Logger and CloudWatchService instances.
+   * Logger instance for logging messages.
    */
-  private readonly logger = new Logger(CloudWatchService.name);
+  @Logger(CloudWatchService.name)
+  private readonly logger!: JSONLogger;
   private cloudWatchClient: CloudWatchClient;
 
   /**

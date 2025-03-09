@@ -2,6 +2,8 @@ import { credentials, loadPackageDefinition } from '@grpc/grpc-js';
 import { loadSync } from '@grpc/proto-loader';
 import { Injectable } from '@nestjs/common';
 import { join } from 'path';
+import { Logger } from 'src/decorators/logger.decorator';
+import { JSONLogger } from 'src/utils/logger';
 
 export interface OrchestratorService {
   triggerPlaylist(
@@ -12,6 +14,12 @@ export interface OrchestratorService {
 
 @Injectable()
 export class ClientFactory {
+  /**
+   * Logger instance for logging messages.
+   */
+  @Logger(ClientFactory.name)
+  private readonly logger!: JSONLogger;
+
   /**
    * Creates a gRPC client for the specified service.
    *
@@ -57,19 +65,15 @@ export class ClientFactory {
 
       client.waitForReady(Date.now() + 5000, (err: { message: any }) => {
         if (err) {
-          console.error(
+          this.logger.error(
             `⚠️ gRPC Client for ${serviceName} (${host}:${port}) failed to connect: ${err.message}`,
-          );
-        } else {
-          console.log(
-            `✅ gRPC Client connected to ${serviceName} at ${host}:${port}`,
           );
         }
       });
 
       return client as T;
     } catch (error) {
-      console.error(`❌ Error creating gRPC client: ${error.message}`);
+      this.logger.error(`❌ Error creating gRPC client: ${error.message}`);
       return null;
     }
   }

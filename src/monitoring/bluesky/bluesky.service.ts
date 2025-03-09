@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { Logger } from 'src/decorators/logger.decorator';
 import { JSONLogger } from 'src/utils/logger';
-import { ClientFactory, OrchestratorService } from '../client.factory';
 import { getGrpcTalkbackEndpoint, getHostAndPort } from 'src/utils/network';
+import { ClientFactory, OrchestratorService } from '../client.factory';
 
 @Injectable()
 export class BlueskyService {
@@ -39,7 +39,7 @@ export class BlueskyService {
     );
 
     if (!client) {
-      console.error('❌ Failed to create gRPC client, skipping delivery.');
+      this.logger.error('❌ Failed to create gRPC client, skipping delivery.');
       return null;
     }
 
@@ -56,7 +56,7 @@ export class BlueskyService {
           },
           (err, response) => {
             if (err) {
-              console.error(`⚠️ gRPC delivery failed: ${err.message}`);
+              this.logger.error(`⚠️ gRPC delivery failed: ${err.message}`);
               reject(new Error(`gRPC delivery failed: ${err.message}`));
             } else {
               resolve(response);
@@ -64,11 +64,13 @@ export class BlueskyService {
           },
         );
       } catch (error) {
-        console.error(`⚠️ Unexpected gRPC error: ${error.message}`);
+        this.logger.error(`⚠️ Unexpected gRPC error: ${error.message}`);
         reject(new Error(error.message));
       }
     }).catch((error) => {
-      console.error(`⚠️ Gracefully handling gRPC failure: ${error.message}`);
+      this.logger.error(
+        `⚠️ Gracefully handling gRPC failure: ${error.message}`,
+      );
       return null;
     });
   }
