@@ -74,6 +74,7 @@ jobs:
             -e DB_DATABASE="${{ secrets.DB_DATABASE }}" \
             -e SERVICE_FQDN="${{ vars.SERVICE_FQDN }}" \
             -e GRPC_PORT="${{ vars.GRPC_PORT }}" \
+            -e TALKBACK_HOST="${{ vars.TALKBACK_HOST }}" \
             -e WIPHALA_SLUG="${{ secrets.WIPHALA_SLUG }}" \
             -e WIPHALA_URL="${{ secrets.WIPHALA_URL }}" \
             -e CONTAINERIZED=true \
