@@ -78,6 +78,7 @@ jobs:
             -e HTTP_PORT="${{ vars.HTTP_PORT }}" \
             -e WIPHALA_SLUG="${{ secrets.WIPHALA_SLUG }}" \
             -e WIPHALA_URL="${{ secrets.WIPHALA_URL }}" \
+            -e ASSETS_BUCKET_NAME="${{ secrets.ASSETS_BUCKET_NAME }}" \
             -e CONTAINERIZED=true \
             --restart=always \
             --log-driver=awslogs \
