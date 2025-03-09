@@ -15,6 +15,7 @@ import { CloudWatchService } from './core/cloudwatch/cloudwatch.service';
 import { CoreModule } from './core/core.module';
 import { MetricsInterceptor } from './core/metrics/metrics.interceptor';
 import { DalModule } from './dal/dal.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 
 /**
  * The AWS Secrets Manager client.
@@ -86,6 +87,7 @@ const secretsManager = new SecretsManagerClient();
     CoreModule,
     DalModule,
     AuthorizationModule,
+    MonitoringModule,
   ],
   controllers: [AppController],
   providers: [
