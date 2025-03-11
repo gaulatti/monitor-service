@@ -15,7 +15,7 @@ export class BlueskyService {
 
   constructor(private readonly clientFactory: ClientFactory) {}
 
-  @Cron('* */5 * * *')
+  @Cron('*/5 *  * * *')
   async monitorBluesky(): Promise<void> {
     try {
       await this.triggerPlaylist();
