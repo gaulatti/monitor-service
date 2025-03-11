@@ -65,10 +65,15 @@ export class BackupService {
    *
    * @throws Will log an error message if the backup process fails at any step.
    */
-  @Cron('0 0 * * *')
+  @Cron('0 */12 * * *')
   async backupDatabase(): Promise<void> {
+    /**
+     * The name of the database to backup.
+     */
+    const database = process.env.DB_DATABASE;
+
     try {
-      const { host, port, username, password, database } =
+      const { host, port, username, password } =
         await this.getDatabaseCredentials();
 
       if (host === 'localhost' || database !== 'monitor') {
@@ -120,7 +125,7 @@ export class BackupService {
   private async uploadToS3(filePath: string) {
     const fileStream = fs.createReadStream(filePath);
     const date = new Date();
-    const key = `backups/${date.getUTCFullYear()}/${date.getMonth() + 1}/${date.getDate()}/${date.toISOString()}.sql`;
+    const key = `backups/${date.getUTCFullYear()}/${date.getMonth() + 1}/${date.toISOString()}.sql`;
 
     const command = new PutObjectCommand({
       Bucket: this.bucketName,
