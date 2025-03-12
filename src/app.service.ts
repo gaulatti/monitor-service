@@ -8,6 +8,9 @@ export class AppService {
     return {
       features: [],
       enums: [],
+      me: {
+        memberships: [],
+      },
     };
   }
 }
