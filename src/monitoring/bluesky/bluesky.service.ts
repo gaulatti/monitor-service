@@ -15,7 +15,7 @@ export class BlueskyService {
 
   constructor(private readonly clientFactory: ClientFactory) {}
 
-  @Cron('*/5 *  * * *')
+  @Cron('*/30 *  * * *')
   async monitorBluesky(): Promise<void> {
     try {
       await this.triggerPlaylist();
@@ -51,7 +51,7 @@ export class BlueskyService {
         client.triggerPlaylist(
           {
             slug: process.env.WIPHALA_SLUG!,
-            context: JSON.stringify({ keyword: 'earthquake', since: 60 * 5 }),
+            context: JSON.stringify({ keyword: 'new york', since: 60 * 30 }),
             origin: getGrpcTalkbackEndpoint(),
           },
           (err, response) => {
