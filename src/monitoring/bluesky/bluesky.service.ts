@@ -4,6 +4,7 @@ import { Logger } from 'src/decorators/logger.decorator';
 import { JSONLogger } from 'src/utils/logger';
 import { getGrpcTalkbackEndpoint, getHostAndPort } from 'src/utils/network';
 import { ClientFactory, OrchestratorService } from '../client.factory';
+import { DeliverRequest, DeliverResponse } from './bluesky.controller';
 
 @Injectable()
 export class BlueskyService {
@@ -13,9 +14,19 @@ export class BlueskyService {
   @Logger(BlueskyService.name)
   private readonly logger!: JSONLogger;
 
+  /**
+   * TODO: Define this in the UI.
+   */
+  private readonly seeds = new Set(['chile', 'new york', 'weather']);
+
+  /**
+   * Queue of topics to be processed.
+   */
+  private topicsQueue = new Set(this.seeds);
+
   constructor(private readonly clientFactory: ClientFactory) {}
 
-  @Cron('*/30 *  * * *')
+  @Cron('* * * * *')
   async monitorBluesky(): Promise<void> {
     try {
       await this.triggerPlaylist();
@@ -51,7 +62,10 @@ export class BlueskyService {
         client.triggerPlaylist(
           {
             slug: process.env.WIPHALA_SLUG!,
-            context: JSON.stringify({ keyword: 'new york', since: 60 * 30 }),
+            context: JSON.stringify({
+              keywords: [...this.topicsQueue],
+              since: 60 * 1,
+            }),
             origin: getGrpcTalkbackEndpoint(),
           },
           (err, response) => {
@@ -73,5 +87,29 @@ export class BlueskyService {
       );
       return null;
     });
+  }
+
+  /**
+   * Processes the incoming data and updates the topics queue with keywords.
+   *
+   * @param data - The delivery request containing the payload.
+   * @returns An object indicating the success of the operation.
+   */
+  receive(data: DeliverRequest): DeliverResponse {
+    const {
+      context: { sequence },
+    } = JSON.parse(data.payload);
+
+    const { output }: { output: { keywords: string[] } } = sequence[0];
+
+    /**
+     * Add the keywords to the topics queue.
+     */
+    this.topicsQueue = new Set(this.seeds);
+    output.keywords.forEach((keyword: string) =>
+      this.topicsQueue.add(keyword.toLowerCase()),
+    );
+
+    return { success: true };
   }
 }
