@@ -100,15 +100,19 @@ export class BlueskyService {
       context: { sequence },
     } = JSON.parse(data.payload);
 
-    const { output }: { output: { keywords: string[] } } = sequence[0];
+    const item = sequence.find((item: { name: string }) => {
+      return item.name == 'MonitorHydrate';
+    });
 
-    /**
-     * Add the keywords to the topics queue.
-     */
-    this.topicsQueue = new Set(this.seeds);
-    output.keywords.forEach((keyword: string) =>
-      this.topicsQueue.add(keyword.toLowerCase()),
-    );
+    if (item.output?.keywords) {
+      /**
+       * Add the keywords to the topics queue.
+       */
+      this.topicsQueue = new Set(this.seeds);
+      item.output.keywords.forEach((keyword: string) =>
+        this.topicsQueue.add(keyword.toLowerCase()),
+      );
+    }
 
     return { success: true };
   }
