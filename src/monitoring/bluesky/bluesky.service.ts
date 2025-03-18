@@ -26,7 +26,7 @@ export class BlueskyService {
 
   constructor(private readonly clientFactory: ClientFactory) {}
 
-  @Cron(`*/5 * * * *`)
+  @Cron(`*/2 * * * *`)
   async monitorBluesky(): Promise<void> {
     try {
       await this.triggerPlaylist();
@@ -64,7 +64,7 @@ export class BlueskyService {
             slug: process.env.WIPHALA_SLUG!,
             context: JSON.stringify({
               keywords: [...this.topicsQueue],
-              since: 60 * 5,
+              since: 60 * 2,
             }),
             origin: getGrpcTalkbackEndpoint(),
           },
