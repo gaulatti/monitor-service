@@ -3,7 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { Logger } from 'src/decorators/logger.decorator';
 import { JSONLogger } from 'src/utils/logger';
 import { getGrpcTalkbackEndpoint, getHostAndPort } from 'src/utils/network';
-import { ClientFactory, OrchestratorService } from '../client.factory';
+import { ClientFactory, WiphalaService } from '../client.factory';
 import { DeliverRequest, DeliverResponse } from './bluesky.controller';
 
 @Injectable()
@@ -26,27 +26,27 @@ export class BlueskyService {
 
   constructor(private readonly clientFactory: ClientFactory) {}
 
-  @Cron(`*/2 * * * *`)
+  @Cron(`*/3 * * * *`)
   async monitorBluesky(): Promise<void> {
     try {
-      await this.triggerPlaylist();
+      await this.trigger();
     } catch (error) {
       this.logger.error('Monitoring from Bluesky failed:', error);
     }
   }
 
-  async triggerPlaylist(): Promise<any> {
+  async trigger(): Promise<any> {
     const { hostname, port } = getHostAndPort(process.env.WIPHALA_URL!);
 
     /**
      * Create a new client to communicate with the client service.
      */
-    const client = this.clientFactory.createClient<OrchestratorService>(
+    const client = this.clientFactory.createClient<WiphalaService>(
       hostname,
       port,
-      'orchestrator.proto',
-      'orchestrator',
-      'OrchestratorService',
+      'wiphala.proto',
+      'wiphala',
+      'WiphalaService',
     );
 
     if (!client) {
@@ -59,12 +59,12 @@ export class BlueskyService {
      */
     return new Promise((resolve, reject) => {
       try {
-        client.triggerPlaylist(
+        client.trigger(
           {
             slug: process.env.WIPHALA_SLUG!,
             context: JSON.stringify({
               keywords: [...this.topicsQueue],
-              since: 60 * 2,
+              since: 60 * 3,
             }),
             origin: getGrpcTalkbackEndpoint(),
           },

@@ -16,7 +16,7 @@ import { grpcPort, httpPort } from './utils/network';
  * - Creates a new Nest application using the Fastify adapter.
  * - Enables CORS for the application.
  * - Registers the global authorization guard.
- * - Starts the orchestrator gRPC server on port 50051.
+ * - Starts the gRPC server.
  * - Starts the application and listens on port 3000 for REST API.
  *
  * @returns {Promise<void>} A promise that resolves when the application has started.
@@ -41,7 +41,7 @@ async function bootstrap(): Promise<void> {
   app.useGlobalGuards(new AuthorizationGuard(app.get(Reflector)));
 
   /**
-   * Start the orchestrator gRPC server
+   * Start the gRPC server
    */
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.GRPC,

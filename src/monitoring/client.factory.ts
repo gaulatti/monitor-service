@@ -5,8 +5,8 @@ import { join } from 'path';
 import { Logger } from 'src/decorators/logger.decorator';
 import { JSONLogger } from 'src/utils/logger';
 
-export interface OrchestratorService {
-  triggerPlaylist(
+export interface WiphalaService {
+  trigger(
     data: { slug: string; context: any; origin: string },
     callback: (err: any, res: { slug: string; status: string }) => void,
   ): void;
