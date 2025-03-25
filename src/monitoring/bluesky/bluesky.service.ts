@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { ClientGrpc } from '@nestjs/microservices';
 import { Cron } from '@nestjs/schedule';
+import { firstValueFrom } from 'rxjs';
 import { Logger } from 'src/decorators/logger.decorator';
+import { WiphalaService } from 'src/interfaces/wiphala.interface';
 import { JSONLogger } from 'src/utils/logger';
-import { getGrpcTalkbackEndpoint, getHostAndPort } from 'src/utils/network';
-import { ClientFactory, WiphalaService } from '../client.factory';
+import { getGrpcTalkbackEndpoint } from 'src/utils/network';
 import { DeliverRequest, DeliverResponse } from './bluesky.controller';
 
 @Injectable()
@@ -23,10 +25,28 @@ export class BlueskyService {
    * Queue of topics to be processed.
    */
   private topicsQueue = new Set(this.seeds);
+  private wiphalaService: WiphalaService;
 
-  constructor(private readonly clientFactory: ClientFactory) {}
+  constructor(@Inject('wiphala') private readonly client: ClientGrpc) {}
 
-  @Cron(`*/3 * * * *`)
+  /**
+   * Lifecycle hook that is called when the module is initialized.
+   * This method retrieves and assigns the WiphalaService instance
+   * from the client to the `WiphalaService` property.
+   */
+  onModuleInit() {
+    this.wiphalaService =
+      this.client.getService<WiphalaService>('WiphalaService');
+  }
+
+  /**
+   * Monitors the Bluesky service by triggering the monitoring process.
+   * Logs an error message if the monitoring process fails.
+   *
+   * @returns {Promise<void>} A promise that resolves when the monitoring process completes.
+   * @throws Logs an error if the monitoring process encounters an issue.
+   */
+  @Cron(`* * * * *`)
   async monitorBluesky(): Promise<void> {
     try {
       await this.trigger();
@@ -35,58 +55,29 @@ export class BlueskyService {
     }
   }
 
+  /**
+   * Triggers a request to the Wiphala service with the specified parameters.
+   *
+   * @returns A promise that resolves with the result of the Wiphala service trigger.
+   *
+   * The request includes:
+   * - `slug`: The Wiphala slug, retrieved from the environment variable `WIPHALA_SLUG`.
+   * - `context`: A JSON string containing:
+   *   - `keywords`: An array of topics from the `topicsQueue`.
+   *   - `since`: A time interval in seconds (defaulting to 3 minutes).
+   * - `origin`: The gRPC talkback endpoint obtained from `getGrpcTalkbackEndpoint()`.
+   */
   async trigger(): Promise<any> {
-    const { hostname, port } = getHostAndPort(process.env.WIPHALA_URL!);
-
-    /**
-     * Create a new client to communicate with the client service.
-     */
-    const client = this.clientFactory.createClient<WiphalaService>(
-      hostname,
-      port,
-      'wiphala.proto',
-      'wiphala',
-      'WiphalaService',
+    return firstValueFrom(
+      this.wiphalaService.trigger({
+        slug: process.env.WIPHALA_SLUG!,
+        context: JSON.stringify({
+          keywords: [...this.topicsQueue],
+          since: 60 * 3,
+        }),
+        origin: getGrpcTalkbackEndpoint(),
+      }),
     );
-
-    if (!client) {
-      this.logger.error('❌ Failed to create gRPC client, skipping delivery.');
-      return null;
-    }
-
-    /**
-     * Deliver the payload to the client service.
-     */
-    return new Promise((resolve, reject) => {
-      try {
-        client.trigger(
-          {
-            slug: process.env.WIPHALA_SLUG!,
-            context: JSON.stringify({
-              keywords: [...this.topicsQueue],
-              since: 60 * 3,
-            }),
-            origin: getGrpcTalkbackEndpoint(),
-          },
-          (err, response) => {
-            if (err) {
-              this.logger.error(`⚠️ gRPC delivery failed: ${err.message}`);
-              reject(new Error(`gRPC delivery failed: ${err.message}`));
-            } else {
-              resolve(response);
-            }
-          },
-        );
-      } catch (error) {
-        this.logger.error(`⚠️ Unexpected gRPC error: ${error.message}`);
-        reject(new Error(error.message));
-      }
-    }).catch((error) => {
-      this.logger.error(
-        `⚠️ Gracefully handling gRPC failure: ${error.message}`,
-      );
-      return null;
-    });
   }
 
   /**

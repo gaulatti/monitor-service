@@ -47,7 +47,7 @@ async function bootstrap(): Promise<void> {
     transport: Transport.GRPC,
     options: {
       package: 'client',
-      protoPath: join(__dirname, './monitoring/proto/client.proto'),
+      protoPath: join(__dirname, './proto/client.proto'),
       url: `0.0.0.0:${grpcPort}`,
     },
   });
