@@ -1,14 +1,12 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { join } from 'path';
 import { AppModule } from './app.module';
 import { AuthorizationGuard } from './authorization/authorization.guard';
-import { grpcPort, httpPort } from './utils/network';
+import { httpPort } from './utils/network';
 
 /**
  * Initializes and starts the NestJS application with Fastify adapter.
@@ -39,20 +37,6 @@ async function bootstrap(): Promise<void> {
    * Register the global authorization guard
    */
   app.useGlobalGuards(new AuthorizationGuard(app.get(Reflector)));
-
-  /**
-   * Start the gRPC server
-   */
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.GRPC,
-    options: {
-      package: 'client',
-      protoPath: join(__dirname, './proto/client.proto'),
-      url: `0.0.0.0:${grpcPort}`,
-    },
-  });
-  await app.startAllMicroservices();
-  Logger.log(`🚀 gRPC server running on port ${grpcPort}`);
 
   /**
    * Start the application.

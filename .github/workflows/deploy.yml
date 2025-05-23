@@ -76,10 +76,9 @@ jobs:
             -e TALKBACK_FQDN="${{ secrets.TALKBACK_FQDN }}" \
             -e GRPC_PORT="${{ vars.GRPC_PORT }}" \
             -e HTTP_PORT="${{ vars.HTTP_PORT }}" \
-            -e WIPHALA_SLUG="${{ secrets.WIPHALA_SLUG }}" \
-            -e WIPHALA_URL="${{ secrets.WIPHALA_URL }}" \
-            -e WIPHALA_GRPC_URL="${{ secrets.WIPHALA_GRPC_URL }}" \
             -e ASSETS_BUCKET_NAME="${{ secrets.ASSETS_BUCKET_NAME }}" \
+            -e N8N_WEBHOOK="${{ secrets.N8N_WEBHOOK }}" \
+            -e N8N_API_KEY="${{ secrets.N8N_API_KEY }}" \
             -e CONTAINERIZED=true \
             --restart=always \
             --log-driver=awslogs \

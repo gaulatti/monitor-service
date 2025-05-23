@@ -1,20 +1,6 @@
-import { Controller } from '@nestjs/common';
-import { GrpcMethod } from '@nestjs/microservices';
+import { Body, Controller, Post } from '@nestjs/common';
+import { Public } from 'src/decorators/public.decorator';
 import { BlueskyService } from './bluesky.service';
-
-/**
- * The data required to trigger a playlist.
- */
-export interface DeliverRequest {
-  payload: string;
-}
-
-/**
- * The response of a triggered playlist.
- */
-export interface DeliverResponse {
-  success: boolean;
-}
 
 /**
  * Controller class for handling Bluesky related operations.
@@ -27,13 +13,14 @@ export class BlueskyController {
   constructor(private readonly blueskyService: BlueskyService) {}
 
   /**
-   * Handles the gRPC method 'Deliver' for the 'ClientService'.
+   * Handles the delivery of input data from the workflow.
    *
-   * @param data - The request data for the deliver operation.
-   * @returns A promise that resolves to a DeliverResponse indicating the success of the operation.
+   * @param param0 - An object containing the `input` property from the request body.
+   * @returns The result of the `receive` method from the workflow.
    */
-  @GrpcMethod('ClientService', 'Deliver')
-  deliver(data: DeliverRequest): DeliverResponse {
-    return this.blueskyService.receive(data);
+  @Post()
+  @Public()
+  deliver(@Body() { input }) {
+    void this.blueskyService.receive(input);
   }
 }
