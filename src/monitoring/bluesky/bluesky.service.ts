@@ -52,7 +52,7 @@ export class BlueskyService {
       process.env.N8N_WEBHOOK!,
       {
         keywords: topKeywords,
-        since: 60 * 3,
+        since: 60,
       },
       {
         headers: {
