@@ -20,7 +20,9 @@ export class BlueskyService {
   /**
    * Queue of topics to be processed.
    */
-  private topicsQueue = new Set(this.seeds);
+  private topicsQueue = new Map<string, number>(
+    Array.from(this.seeds).map((seed) => [seed, 1]),
+  );
 
   /**
    * Monitors the Bluesky service by triggering the monitoring process.
@@ -39,10 +41,17 @@ export class BlueskyService {
   }
 
   trigger() {
+    /**
+     * Sends the top keywords to the n8n webhook for further processing.
+     */
+    const topKeywords = Array.from(this.topicsQueue.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([keyword]) => keyword);
     void axios.post(
       process.env.N8N_WEBHOOK!,
       {
-        keywords: [...this.topicsQueue],
+        keywords: topKeywords,
         since: 60 * 3,
       },
       {
@@ -61,12 +70,15 @@ export class BlueskyService {
   receive(data) {
     if (data?.keywords) {
       /**
-       * Add the keywords to the topics queue.
+       * Initialize the topics queue with seeds and keywords.
        */
-      this.topicsQueue = new Set(this.seeds);
-      data.keywords.forEach((keyword: string) =>
-        this.topicsQueue.add(keyword.toLowerCase()),
+      this.topicsQueue = new Map<string, number>(
+        Array.from(this.seeds).map((seed) => [seed, 1]),
       );
+      data.keywords.forEach((keyword: string) => {
+        const key = keyword.toLowerCase();
+        this.topicsQueue.set(key, (this.topicsQueue.get(key) || 0) + 1);
+      });
     }
   }
 }
