@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import axios from 'axios';
 import { Logger } from 'src/decorators/logger.decorator';
 import { JSONLogger } from 'src/utils/logger';
+import { TelegramService } from 'src/telegram/telegram.service';
 
 @Injectable()
 export class BlueskyService {
@@ -23,6 +24,8 @@ export class BlueskyService {
   private topicsQueue = new Map<string, number>(
     Array.from(this.seeds).map((seed) => [seed, 1]),
   );
+
+  constructor(private readonly telegramService: TelegramService) {}
 
   /**
    * Monitors the Bluesky service by triggering the monitoring process.
@@ -63,11 +66,39 @@ export class BlueskyService {
   }
 
   /**
+   * Helper to format a Bluesky post as a Telegram message.
+   */
+  private formatBlueskyMessage(post: any): string {
+    const text = post?.record?.text || '';
+    const handle = post?.author?.handle || '';
+    const uri = post?.uri;
+    let media = '';
+    let mediaLabel = '';
+    // Try to find image or video
+    if (post?.embed?.images?.length) {
+      media = post.embed.images[0].fullsize || post.embed.images[0].thumb || '';
+      mediaLabel = 'Image';
+    } else if (post?.embed?.external?.thumb) {
+      media = post.embed.external.thumb;
+      mediaLabel = 'Media';
+    }
+    let link = '';
+    if (uri) {
+      link = `https://bsky.app/profile/${post.author?.handle}/post/${uri.split('/').pop()}`;
+    }
+    let msg = `<b>@${handle}</b>\n`;
+    if (text) msg += `<i>${text}</i>\n`;
+    if (media) msg += `[${mediaLabel}](${media})\n`;
+    if (link) msg += `[View on Bluesky](${link})`;
+    return msg;
+  }
+
+  /**
    * Processes the incoming data and updates the topics queue with keywords.
    *
    * @param data - The delivery request containing the payload.
    */
-  receive(data) {
+  async receive(data) {
     if (data?.keywords) {
       /**
        * Initialize the topics queue with seeds and keywords.
@@ -79,6 +110,19 @@ export class BlueskyService {
         const key = keyword.toLowerCase();
         this.topicsQueue.set(key, (this.topicsQueue.get(key) || 0) + 1);
       });
+    }
+    // Send breaking posts first, then cids
+    if (data?.breaking?.length) {
+      for (const item of data.breaking) {
+        const msg = this.formatBlueskyMessage(item.json);
+        await this.telegramService.sendMessage(msg);
+      }
+    }
+    if (data?.cids?.length) {
+      for (const item of data.cids) {
+        const msg = this.formatBlueskyMessage(item.json);
+        await this.telegramService.sendMessage(msg);
+      }
     }
   }
 }
