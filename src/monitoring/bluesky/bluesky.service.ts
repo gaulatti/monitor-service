@@ -67,8 +67,10 @@ export class BlueskyService {
 
   /**
    * Helper to format a Bluesky post as a Telegram message.
+   * @param post The Bluesky post object
+   * @param breaking Whether this is a breaking item (for special formatting)
    */
-  private formatBlueskyMessage(post: any): string {
+  private formatBlueskyMessage(post: any, breaking = false): string {
     const text = post?.record?.text || '';
     const handle = post?.author?.handle || '';
     const uri = post?.uri;
@@ -86,10 +88,17 @@ export class BlueskyService {
     if (uri) {
       link = `https://bsky.app/profile/${post.author?.handle}/post/${uri.split('/').pop()}`;
     }
-    let msg = `<b>@${handle}</b>\n`;
+    let msg = '';
+    if (breaking) {
+      msg += '🚨 <b>BREAKING</b> 🚨\n';
+    }
+    msg += `<b>@${handle}</b>\n`;
     if (text) msg += `<i>${text}</i>\n`;
     if (media) msg += `[${mediaLabel}](${media})\n`;
     if (link) msg += `[View on Bluesky](${link})`;
+    if (breaking) {
+      msg += '\n\n'; // Extra space for breaking
+    }
     return msg;
   }
 
@@ -114,13 +123,13 @@ export class BlueskyService {
     // Send breaking posts first, then cids
     if (data?.breaking?.length) {
       for (const item of data.breaking) {
-        const msg = this.formatBlueskyMessage(item.json);
+        const msg = this.formatBlueskyMessage(item.json, true);
         await this.telegramService.sendMessage(msg);
       }
     }
     if (data?.cids?.length) {
       for (const item of data.cids) {
-        const msg = this.formatBlueskyMessage(item.json);
+        const msg = this.formatBlueskyMessage(item.json, false);
         await this.telegramService.sendMessage(msg);
       }
     }
