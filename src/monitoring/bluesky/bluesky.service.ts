@@ -52,7 +52,7 @@ export class BlueskyService {
       .slice(0, 5)
       .map(([keyword]) => keyword);
 
-    this.logger.debug(JSON.stringify(topKeywords, null, 2));
+    this.logger.debug(JSON.stringify(this.topicsQueue, null, 2));
 
     void axios.post(
       process.env.N8N_WEBHOOK!,
