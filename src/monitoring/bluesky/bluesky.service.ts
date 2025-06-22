@@ -47,14 +47,20 @@ export class BlueskyService {
     /**
      * Sends the top keywords to the n8n webhook for further processing.
      */
-    const topKeywords = Array.from(this.topicsQueue.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([keyword]) => keyword);
+    const sortedEntries = Array.from(this.topicsQueue.entries()).sort(
+      (a, b) => b[1] - a[1],
+    );
+
+    const topKeywords = sortedEntries.slice(0, 5).map(([keyword]) => keyword);
 
     this.logger.debug(
+      'Topics queue:',
       JSON.stringify(Object.fromEntries(this.topicsQueue), null, 2),
     );
+
+    this.logger.debug('Sorted entries (top 10):', sortedEntries.slice(0, 10));
+
+    this.logger.debug('Top keywords being sent:', topKeywords);
 
     void axios.post(
       process.env.N8N_WEBHOOK!,
