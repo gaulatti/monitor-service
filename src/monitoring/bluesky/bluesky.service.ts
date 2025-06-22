@@ -114,12 +114,6 @@ export class BlueskyService {
    */
   async receive(data) {
     if (data?.keywords) {
-      /**
-       * Initialize the topics queue with seeds and keywords.
-       */
-      this.topicsQueue = new Map<string, number>(
-        Array.from(this.seeds).map((seed) => [seed, 1]),
-      );
       data.keywords.forEach((keyword: string) => {
         const key = keyword.toLowerCase();
         this.topicsQueue.set(key, (this.topicsQueue.get(key) || 0) + 1);
