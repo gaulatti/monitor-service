@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import axios from 'axios';
 import { Logger } from 'src/decorators/logger.decorator';
-import { JSONLogger } from 'src/utils/logger';
 import { TelegramService } from 'src/telegram/telegram.service';
+import { JSONLogger } from 'src/utils/logger';
 
 @Injectable()
 export class BlueskyService {
@@ -51,6 +51,9 @@ export class BlueskyService {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([keyword]) => keyword);
+
+    this.logger.debug(JSON.stringify(topKeywords, null, 2));
+
     void axios.post(
       process.env.N8N_WEBHOOK!,
       {
