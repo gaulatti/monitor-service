@@ -128,13 +128,13 @@ export class BlueskyService {
     // Send breaking posts first, then cids
     if (data?.breaking?.length) {
       for (const item of data.breaking) {
-        const msg = this.formatBlueskyMessage(item.json, true);
+        const msg = this.formatBlueskyMessage(item, true);
         await this.telegramService.sendMessage(msg);
       }
     }
     if (data?.cids?.length) {
       for (const item of data.cids) {
-        const msg = this.formatBlueskyMessage(item.json, false);
+        const msg = this.formatBlueskyMessage(item, false);
         await this.telegramService.sendMessage(msg);
       }
     }
