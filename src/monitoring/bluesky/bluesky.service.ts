@@ -89,7 +89,6 @@ export class BlueskyService {
     const text = post?.content || '';
     const handle = post?.author?.handle || '';
     const name = post?.author?.name || '';
-    const avatar = post?.author?.avatar || '';
     const mediaArr: string[] = Array.isArray(post?.media) ? post.media : [];
     const linkPreview = post?.linkPreview;
     const uri = post?.uri;
@@ -104,7 +103,6 @@ export class BlueskyService {
     msg += `<b>@${handle}</b>`;
     if (name) msg += ` (${name})`;
     msg += '\n';
-    if (avatar) msg += `<a href="${avatar}">🖼️</a>\n`;
     if (text) msg += `<i>${text}</i>\n`;
     if (mediaArr.length > 0) {
       msg += mediaArr.map((m, i) => `[Media ${i + 1}](${m})`).join('\n') + '\n';
@@ -113,9 +111,7 @@ export class BlueskyService {
       msg += `[Link Preview](${linkPreview})\n`;
     }
     if (link) msg += `[View on Bluesky](${link})`;
-    if (breaking) {
-      msg += '\n\n';
-    }
+
     return msg;
   }
 
