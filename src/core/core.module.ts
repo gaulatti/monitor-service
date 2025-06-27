@@ -6,6 +6,6 @@ import { CloudWatchService } from './cloudwatch/cloudwatch.service';
 @Module({
   providers: [NotificationsService, CloudWatchService],
   controllers: [NotificationsController],
-  exports: [NotificationsService],
+  exports: [NotificationsService, CloudWatchService],
 })
 export class CoreModule {}
