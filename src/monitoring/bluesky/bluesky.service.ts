@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import axios from 'axios';
-import { Logger } from 'src/decorators/logger.decorator';
 import { CloudWatchService } from 'src/core/cloudwatch/cloudwatch.service';
+import { Logger } from 'src/decorators/logger.decorator';
 import { TelegramService } from 'src/telegram/telegram.service';
 import { JSONLogger } from 'src/utils/logger';
 
@@ -82,34 +82,45 @@ export class BlueskyService {
 
   /**
    * Helper to format a Bluesky post as a Telegram message.
-   * @param post The Bluesky post object
+   * @param post The Bluesky post object (new schema)
    * @param breaking Whether this is a breaking item (for special formatting)
    */
   private formatBlueskyMessage(post: any, breaking = false): string {
-    const text = post?.record?.text || '';
+    const text = post?.content || '';
     const handle = post?.author?.handle || '';
+    const name = post?.author?.name || '';
+    const avatar = post?.author?.avatar || '';
     const uri = post?.uri;
-    let media = '';
-    let mediaLabel = '';
-    // Try to find image or video
-    if (post?.embed?.images?.length) {
-      media = post.embed.images[0].fullsize || post.embed.images[0].thumb || '';
-      mediaLabel = 'Image';
-    } else if (post?.embed?.external?.thumb) {
-      media = post.embed.external.thumb;
-      mediaLabel = 'Media';
+    const mediaArr = Array.isArray(post?.media) ? post.media : [];
+    const linkPreview = post?.linkPreview;
+
+    let mediaSection = '';
+    if (mediaArr.length > 0) {
+      // Show all media links as clickable
+      mediaSection = mediaArr
+        .map((m, i) => `[Media ${i + 1}](${m})`)
+        .join('\n');
     }
+    if (linkPreview) {
+      mediaSection +=
+        (mediaSection ? '\n' : '') + `[Link Preview](${linkPreview})`;
+    }
+
     let link = '';
-    if (uri) {
-      link = `https://bsky.app/profile/${post.author?.handle}/post/${uri.split('/').pop()}`;
+    if (uri && handle) {
+      link = `https://bsky.app/profile/${handle}/post/${uri.split('/').pop()}`;
     }
+
     let msg = '';
     if (breaking) {
       msg += '🚨 <b>BREAKING</b> 🚨\n';
     }
-    msg += `<b>@${handle}</b>\n`;
+    msg += `<b>@${handle}</b>`;
+    if (name) msg += ` (${name})`;
+    msg += '\n';
+    if (avatar) msg += `<a href=\"${avatar}\">🖼️</a>\n`;
     if (text) msg += `<i>${text}</i>\n`;
-    if (media) msg += `[${mediaLabel}](${media})\n`;
+    if (mediaSection) msg += `${mediaSection}\n`;
     if (link) msg += `[View on Bluesky](${link})`;
     if (breaking) {
       msg += '\n\n'; // Extra space for breaking
@@ -145,8 +156,7 @@ export class BlueskyService {
       if (data?.items?.length) {
         for (const item of data.items) {
           const post = item.json;
-          const relevance = item.relevance ?? post.relevance;
-          const isBreaking = relevance >= 7;
+          const isBreaking = (post.relevance ?? 0) >= 7;
           const msg = this.formatBlueskyMessage(post, isBreaking);
           await this.telegramService.sendMessage(msg);
         }
