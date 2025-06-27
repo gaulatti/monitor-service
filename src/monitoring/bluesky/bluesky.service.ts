@@ -81,49 +81,17 @@ export class BlueskyService {
   }
 
   /**
-   * Helper to format a Bluesky post as a Telegram message (latest schema).
-   * @param post The Bluesky post object (latest schema)
+   * Helper to format a Bluesky post as a Telegram message (final schema).
+   * @param post The Bluesky post object (final schema)
    * @param breaking Whether this is a breaking item (for special formatting)
    */
   private formatBlueskyMessage(post: any, breaking = false): string {
-    // Extract text
-    const text = post?.record?.text || '';
-    // Extract author info
+    const text = post?.content || '';
     const handle = post?.author?.handle || '';
-    const name = post?.author?.displayName || '';
+    const name = post?.author?.name || '';
     const avatar = post?.author?.avatar || '';
-    // Extract media (from facets, embed, or external)
-    let mediaArr: string[] = [];
-    // Try to extract media from facets (links)
-    if (Array.isArray(post?.record?.facets)) {
-      for (const facet of post.record.facets) {
-        if (Array.isArray(facet.features)) {
-          for (const feature of facet.features) {
-            if (feature.uri) {
-              mediaArr.push(feature.uri);
-            }
-          }
-        }
-      }
-    }
-    // Try to extract media from embed/external
-    if (post?.embed?.external?.uri) {
-      mediaArr.push(post.embed.external.uri);
-    }
-    // Try to extract media from record.embed.external
-    if (post?.record?.embed?.external?.uri) {
-      mediaArr.push(post.record.embed.external.uri);
-    }
-    // Remove duplicates
-    mediaArr = Array.from(new Set(mediaArr));
-    // Link preview (external link description)
-    let linkPreview = '';
-    if (post?.embed?.external?.uri) {
-      linkPreview = post.embed.external.uri;
-    } else if (post?.record?.embed?.external?.uri) {
-      linkPreview = post.record.embed.external.uri;
-    }
-    // Bluesky link
+    const mediaArr: string[] = Array.isArray(post?.media) ? post.media : [];
+    const linkPreview = post?.linkPreview;
     const uri = post?.uri;
     let link = '';
     if (uri && handle) {
@@ -159,7 +127,6 @@ export class BlueskyService {
   async receive(data: any) {
     const dataList = Array.isArray(data) ? data : [data];
     for (const entry of dataList) {
-      // Update topics queue with keywords
       if (entry?.keywords) {
         entry.keywords.forEach((keyword: string) => {
           const key = keyword.toLowerCase();
@@ -174,7 +141,6 @@ export class BlueskyService {
           Service: 'Monitor/Keywords',
         });
       });
-      // Process each post in items
       if (entry?.items?.length) {
         for (const post of entry.items) {
           const isBreaking = (post.relevance ?? 0) >= 7;
