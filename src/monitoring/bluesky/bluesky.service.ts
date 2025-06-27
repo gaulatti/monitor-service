@@ -81,36 +81,54 @@ export class BlueskyService {
   }
 
   /**
-   * Helper to format a Bluesky post as a Telegram message.
-   * @param post The Bluesky post object (new schema)
+   * Helper to format a Bluesky post as a Telegram message (latest schema).
+   * @param post The Bluesky post object (latest schema)
    * @param breaking Whether this is a breaking item (for special formatting)
    */
   private formatBlueskyMessage(post: any, breaking = false): string {
-    const text = post?.content || '';
+    // Extract text
+    const text = post?.record?.text || '';
+    // Extract author info
     const handle = post?.author?.handle || '';
-    const name = post?.author?.name || '';
+    const name = post?.author?.displayName || '';
     const avatar = post?.author?.avatar || '';
+    // Extract media (from facets, embed, or external)
+    let mediaArr: string[] = [];
+    // Try to extract media from facets (links)
+    if (Array.isArray(post?.record?.facets)) {
+      for (const facet of post.record.facets) {
+        if (Array.isArray(facet.features)) {
+          for (const feature of facet.features) {
+            if (feature.uri) {
+              mediaArr.push(feature.uri);
+            }
+          }
+        }
+      }
+    }
+    // Try to extract media from embed/external
+    if (post?.embed?.external?.uri) {
+      mediaArr.push(post.embed.external.uri);
+    }
+    // Try to extract media from record.embed.external
+    if (post?.record?.embed?.external?.uri) {
+      mediaArr.push(post.record.embed.external.uri);
+    }
+    // Remove duplicates
+    mediaArr = Array.from(new Set(mediaArr));
+    // Link preview (external link description)
+    let linkPreview = '';
+    if (post?.embed?.external?.uri) {
+      linkPreview = post.embed.external.uri;
+    } else if (post?.record?.embed?.external?.uri) {
+      linkPreview = post.record.embed.external.uri;
+    }
+    // Bluesky link
     const uri = post?.uri;
-    const mediaArr = Array.isArray(post?.media) ? post.media : [];
-    const linkPreview = post?.linkPreview;
-
-    let mediaSection = '';
-    if (mediaArr.length > 0) {
-      // Show all media links as clickable
-      mediaSection = mediaArr
-        .map((m, i) => `[Media ${i + 1}](${m})`)
-        .join('\n');
-    }
-    if (linkPreview) {
-      mediaSection +=
-        (mediaSection ? '\n' : '') + `[Link Preview](${linkPreview})`;
-    }
-
     let link = '';
     if (uri && handle) {
       link = `https://bsky.app/profile/${handle}/post/${uri.split('/').pop()}`;
     }
-
     let msg = '';
     if (breaking) {
       msg += '🚨 <b>BREAKING</b> 🚨\n';
@@ -118,12 +136,17 @@ export class BlueskyService {
     msg += `<b>@${handle}</b>`;
     if (name) msg += ` (${name})`;
     msg += '\n';
-    if (avatar) msg += `<a href=\"${avatar}\">🖼️</a>\n`;
+    if (avatar) msg += `<a href="${avatar}">🖼️</a>\n`;
     if (text) msg += `<i>${text}</i>\n`;
-    if (mediaSection) msg += `${mediaSection}\n`;
+    if (mediaArr.length > 0) {
+      msg += mediaArr.map((m, i) => `[Media ${i + 1}](${m})`).join('\n') + '\n';
+    }
+    if (linkPreview) {
+      msg += `[Link Preview](${linkPreview})\n`;
+    }
     if (link) msg += `[View on Bluesky](${link})`;
     if (breaking) {
-      msg += '\n\n'; // Extra space for breaking
+      msg += '\n\n';
     }
     return msg;
   }
@@ -154,8 +177,7 @@ export class BlueskyService {
 
       // Process each post in items
       if (data?.items?.length) {
-        for (const item of data.items) {
-          const post = item.json;
+        for (const post of data.items) {
           const isBreaking = (post.relevance ?? 0) >= 7;
           const msg = this.formatBlueskyMessage(post, isBreaking);
           await this.telegramService.sendMessage(msg);
