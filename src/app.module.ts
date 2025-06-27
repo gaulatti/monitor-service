@@ -17,6 +17,7 @@ import { MetricsInterceptor } from './core/metrics/metrics.interceptor';
 import { DalModule } from './dal/dal.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { PostsModule } from './models/posts.module';
 
 /**
  * The AWS Secrets Manager client.
@@ -90,6 +91,7 @@ const secretsManager = new SecretsManagerClient();
     AuthorizationModule,
     MonitoringModule,
     TelegramModule,
+    PostsModule,
   ],
   controllers: [AppController],
   providers: [

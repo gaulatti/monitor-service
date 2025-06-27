@@ -120,36 +120,36 @@ export class BlueskyService {
   /**
    * Processes the incoming data and updates the topics queue with keywords.
    *
-   * @param data - The delivery request containing the payload.
+   * @param dataArray - The delivery request containing the payload.
    */
-  async receive(data) {
-    if (data?.keywords) {
-      data.keywords.forEach((keyword: string) => {
-        const key = keyword.toLowerCase();
-        const currentValue = this.topicsQueue.get(key) || 0;
-        const newValue = currentValue + 1;
-        this.topicsQueue.set(key, newValue);
-      });
-    }
-
-    this.topicsQueue.forEach((value, key) => {
-      void this.cloudWatchService.sendMetric('TrendingKeywords', value, {
-        Keyword: key,
-        Service: 'Monitor/Keywords',
-      });
-    });
-
-    // Send breaking posts first, then cids
-    if (data?.breaking?.length) {
-      for (const item of data.breaking) {
-        const msg = this.formatBlueskyMessage(item, true);
-        await this.telegramService.sendMessage(msg);
+  async receive(dataArray) {
+    for (const data of dataArray) {
+      // Update topics queue with keywords
+      if (data?.keywords) {
+        data.keywords.forEach((keyword: string) => {
+          const key = keyword.toLowerCase();
+          const currentValue = this.topicsQueue.get(key) || 0;
+          const newValue = currentValue + 1;
+          this.topicsQueue.set(key, newValue);
+        });
       }
-    }
-    if (data?.cids?.length) {
-      for (const item of data.cids) {
-        const msg = this.formatBlueskyMessage(item, false);
-        await this.telegramService.sendMessage(msg);
+
+      this.topicsQueue.forEach((value, key) => {
+        void this.cloudWatchService.sendMetric('TrendingKeywords', value, {
+          Keyword: key,
+          Service: 'Monitor/Keywords',
+        });
+      });
+
+      // Process each post in items
+      if (data?.items?.length) {
+        for (const item of data.items) {
+          const post = item.json;
+          const relevance = item.relevance ?? post.relevance;
+          const isBreaking = relevance >= 7;
+          const msg = this.formatBlueskyMessage(post, isBreaking);
+          await this.telegramService.sendMessage(msg);
+        }
       }
     }
   }
