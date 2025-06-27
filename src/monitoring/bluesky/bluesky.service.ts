@@ -154,30 +154,29 @@ export class BlueskyService {
   /**
    * Processes the incoming data and updates the topics queue with keywords.
    *
-   * @param dataArray - The delivery request containing the payload.
+   * @param data - The delivery request containing the payload (object or array).
    */
-  async receive(dataArray) {
-    for (const data of dataArray) {
+  async receive(data: any) {
+    const dataList = Array.isArray(data) ? data : [data];
+    for (const entry of dataList) {
       // Update topics queue with keywords
-      if (data?.keywords) {
-        data.keywords.forEach((keyword: string) => {
+      if (entry?.keywords) {
+        entry.keywords.forEach((keyword: string) => {
           const key = keyword.toLowerCase();
           const currentValue = this.topicsQueue.get(key) || 0;
           const newValue = currentValue + 1;
           this.topicsQueue.set(key, newValue);
         });
       }
-
       this.topicsQueue.forEach((value, key) => {
         void this.cloudWatchService.sendMetric('TrendingKeywords', value, {
           Keyword: key,
           Service: 'Monitor/Keywords',
         });
       });
-
       // Process each post in items
-      if (data?.items?.length) {
-        for (const post of data.items) {
+      if (entry?.items?.length) {
+        for (const post of entry.items) {
           const isBreaking = (post.relevance ?? 0) >= 7;
           const msg = this.formatBlueskyMessage(post, isBreaking);
           await this.telegramService.sendMessage(msg);
