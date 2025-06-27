@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import axios from 'axios';
 import { Logger } from 'src/decorators/logger.decorator';
+import { CloudWatchService } from 'src/core/cloudwatch/cloudwatch.service';
 import { TelegramService } from 'src/telegram/telegram.service';
 import { JSONLogger } from 'src/utils/logger';
 
@@ -25,7 +26,10 @@ export class BlueskyService {
     Array.from(this.seeds).map((seed) => [seed, 1]),
   );
 
-  constructor(private readonly telegramService: TelegramService) {}
+  constructor(
+    private readonly telegramService: TelegramService,
+    private readonly cloudWatchService: CloudWatchService,
+  ) {}
 
   /**
    * Monitors the Bluesky service by triggering the monitoring process.
@@ -122,9 +126,19 @@ export class BlueskyService {
     if (data?.keywords) {
       data.keywords.forEach((keyword: string) => {
         const key = keyword.toLowerCase();
-        this.topicsQueue.set(key, (this.topicsQueue.get(key) || 0) + 1);
+        const currentValue = this.topicsQueue.get(key) || 0;
+        const newValue = currentValue + 1;
+        this.topicsQueue.set(key, newValue);
       });
     }
+
+    this.topicsQueue.forEach((value, key) => {
+      void this.cloudWatchService.sendMetric('TrendingKeywords', value, {
+        Keyword: key,
+        Service: 'Monitor/Keywords',
+      });
+    });
+
     // Send breaking posts first, then cids
     if (data?.breaking?.length) {
       for (const item of data.breaking) {
