@@ -8,11 +8,11 @@ import { JSONLogger } from 'src/utils/logger';
 import { PostsService } from '../posts/posts.service';
 
 @Injectable()
-export class PostIngestionService {
+export class IngestService {
   /**
    * Logger instance for logging messages.
    */
-  @Logger(PostIngestionService.name)
+  @Logger(IngestService.name)
   private readonly logger!: JSONLogger;
 
   /**
@@ -40,7 +40,7 @@ export class PostIngestionService {
    * @throws Logs an error if the monitoring process encounters an issue.
    */
   @Cron(`* * * * *`)
-  monitorPostIngestion() {
+  monitorIngest() {
     try {
       console.log('Monitoring content ingestion');
       void this.trigger();
