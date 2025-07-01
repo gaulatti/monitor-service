@@ -19,7 +19,7 @@ module.exports = {
       source_id: {
         type: Sequelize.STRING(255),
         allowNull: false,
-        comment: 'Original ID from the source (e.g., Bluesky post ID)',
+        comment: 'Original ID from the source platform (e.g., Twitter tweet ID, post ID, etc.)',
       },
       source: {
         type: Sequelize.STRING(64),
