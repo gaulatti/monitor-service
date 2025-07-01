@@ -34,7 +34,7 @@ export class PostIngestionService {
   ) {}
 
   /**
-   * Monitors the post ingestion service by triggering the monitoring process.
+   * Monitors the content ingestion service by triggering the monitoring process.
    * Logs an error message if the monitoring process fails.
    *
    * @throws Logs an error if the monitoring process encounters an issue.
@@ -42,10 +42,10 @@ export class PostIngestionService {
   @Cron(`* * * * *`)
   monitorPostIngestion() {
     try {
-      console.log('Monitoring post ingestion');
+      console.log('Monitoring content ingestion');
       void this.trigger();
     } catch (error) {
-      this.logger.error('Monitoring post ingestion failed:', error);
+      this.logger.error('Monitoring content ingestion failed:', error);
     }
   }
 
@@ -83,29 +83,21 @@ export class PostIngestionService {
   }
 
   /**
-   * Helper to format a post as a Telegram message (final schema).
-   * @param post The post object (final schema)
+   * Helper to format an ingested item as a Telegram message.
+   * @param ingest The ingested item object
    * @param breaking Whether this is a breaking item (for special formatting)
    */
-  private formatPostMessage(post: any, breaking = false): string {
-    const text = post?.content || '';
-    const handle = post?.author?.handle || '';
-    const name = post?.author?.name || '';
-    const mediaArr: string[] = Array.isArray(post?.media) ? post.media : [];
-    const linkPreview = post?.linkPreview;
-    const uri = post?.uri;
-    const source = post?.source || '';
-    let link = '';
+  private formatIngestMessage(ingest: any, breaking = false): string {
+    const text = ingest?.content || '';
+    const handle = ingest?.author?.handle || '';
+    const name = ingest?.author?.name || '';
+    const mediaArr: string[] = Array.isArray(ingest?.media) ? ingest.media : [];
+    const linkPreview = ingest?.linkPreview;
+    const uri = ingest?.uri;
+    const source = ingest?.source || '';
 
-    // Generate source-specific link
-    if (uri && handle) {
-      if (source.toLowerCase() === 'bluesky') {
-        link = `https://bsky.app/profile/${handle}/post/${uri.split('/').pop()}`;
-      } else {
-        // For other sources, use the URI directly if it's a valid URL
-        link = uri.startsWith('http') ? uri : '';
-      }
-    }
+    // Use the URI directly if it's a valid URL, otherwise leave link empty
+    const link = uri && uri.startsWith('http') ? uri : '';
 
     let msg = '';
     if (breaking) {
@@ -124,7 +116,7 @@ export class PostIngestionService {
     if (link) {
       const linkText = source
         ? `View on ${source.charAt(0).toUpperCase() + source.slice(1)}`
-        : 'View Post';
+        : 'View Content';
       msg += `[${linkText}](${link})`;
     }
 
@@ -154,18 +146,18 @@ export class PostIngestionService {
         });
       });
       if (entry?.items?.length) {
-        for (const post of entry.items) {
+        for (const ingest of entry.items) {
           try {
-            // Save post to database - pass categories from post data if available
-            const categories = post.categories || [];
-            await this.postsService.savePost(post, categories);
+            // Save ingested content to database - pass categories from ingest data if available
+            const categories = ingest.categories || [];
+            await this.postsService.saveIngest(ingest, categories);
 
             // Send to Telegram
-            const isBreaking = (post.relevance ?? 0) >= 7;
-            const msg = this.formatPostMessage(post, isBreaking);
+            const isBreaking = (ingest.relevance ?? 0) >= 7;
+            const msg = this.formatIngestMessage(ingest, isBreaking);
             await this.telegramService.sendMessage(msg);
           } catch (error) {
-            this.logger.error(`Error processing post ${post.id}:`, error);
+            this.logger.error(`Error processing ingest ${ingest.id}:`, error);
           }
         }
       }

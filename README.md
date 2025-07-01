@@ -24,12 +24,22 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Monitor Service - A source-agnostic content ingestion and monitoring service built with [NestJS](https://github.com/nestjs/nest).
 
 ## Project setup
 
 ```bash
 $ npm install
+```
+
+## Build the project
+
+```bash
+# Build for production
+$ npm run build
+
+# Lint code
+$ npm run lint
 ```
 
 ## Compile and run the project
@@ -57,6 +67,16 @@ $ npm run test:e2e
 # test coverage
 $ npm run test:cov
 ```
+
+## Continuous Integration
+
+The project includes a CI workflow that:
+- Builds the NestJS service on every push and pull request
+- Runs linting to ensure code quality
+- Executes tests if available
+- Fails the build if any step fails
+
+The CI workflow is automatically triggered for all branches and ensures code quality and build integrity.
 
 ## Deployment
 
