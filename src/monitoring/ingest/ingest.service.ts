@@ -18,7 +18,7 @@ export class IngestService {
   /**
    * TODO: Define this in the UI.
    */
-  private readonly seeds = new Set(['chile', 'new york', 'weather']);
+  private readonly seeds = new Set(['chile', 'new york', 'weather', 'zohran', ]);
 
   /**
    * Queue of topics to be processed.

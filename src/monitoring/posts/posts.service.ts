@@ -126,7 +126,7 @@ export class PostsService {
         },
       ],
       order: [['posted_at', 'DESC']],
-      limit: 30,
+      limit: 50,
       attributes: ['uuid', 'content', 'author', 'source', 'posted_at'],
     });
 

@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { PostsService, IngestResponseDto } from './posts.service';
+import { Public } from 'src/decorators/public.decorator';
 
 export interface GetIngestsQueryDto {
   categories?: string;
@@ -10,6 +11,7 @@ export class PostsController {
   constructor(private readonly postsService: PostsService) {}
 
   @Get()
+  @Public()
   async getPosts(
     @Query() query: GetIngestsQueryDto,
   ): Promise<IngestResponseDto[]> {
