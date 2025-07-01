@@ -7,6 +7,7 @@ import {
   ForeignKey,
   BelongsTo,
   CreatedAt,
+  AutoIncrement,
 } from 'sequelize-typescript';
 import { Event } from './event.model';
 
@@ -17,18 +18,26 @@ import { Event } from './event.model';
 })
 export class Draft extends Model<Draft> {
   @PrimaryKey
+  @AutoIncrement
   @Column({
-    type: DataType.CHAR(36),
+    type: DataType.INTEGER,
     allowNull: false,
   })
-  id: string;
+  id: number;
+
+  @Column({
+    type: DataType.STRING(36),
+    allowNull: false,
+    unique: true,
+  })
+  uuid: string;
 
   @ForeignKey(() => Event)
   @Column({
-    type: DataType.CHAR(36),
+    type: DataType.INTEGER,
     allowNull: false,
   })
-  event_id: string;
+  event_id: number;
 
   @Column({
     type: DataType.TEXT,

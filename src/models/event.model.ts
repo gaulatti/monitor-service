@@ -4,11 +4,11 @@ import {
   Model,
   DataType,
   PrimaryKey,
-  AllowNull,
   HasMany,
   BelongsToMany,
   CreatedAt,
   UpdatedAt,
+  AutoIncrement,
 } from 'sequelize-typescript';
 import { Post } from './post.model';
 import { Match } from './match.model';
@@ -22,11 +22,19 @@ import { Draft } from './draft.model';
 })
 export class Event extends Model<Event> {
   @PrimaryKey
+  @AutoIncrement
   @Column({
-    type: DataType.CHAR(36),
+    type: DataType.INTEGER,
     allowNull: false,
   })
-  id: string;
+  id: number;
+
+  @Column({
+    type: DataType.STRING(36),
+    allowNull: false,
+    unique: true,
+  })
+  uuid: string;
 
   @Column({
     type: DataType.TEXT,

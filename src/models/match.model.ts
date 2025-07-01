@@ -20,18 +20,18 @@ export class Match extends Model<Match> {
   @PrimaryKey
   @ForeignKey(() => Event)
   @Column({
-    type: DataType.CHAR(36),
+    type: DataType.INTEGER,
     allowNull: false,
   })
-  event_id: string;
+  event_id: number;
 
   @PrimaryKey
   @ForeignKey(() => Post)
   @Column({
-    type: DataType.CHAR(36),
+    type: DataType.INTEGER,
     allowNull: false,
   })
-  post_id: string;
+  post_id: number;
 
   @Column({
     type: DataType.FLOAT,

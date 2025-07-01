@@ -142,8 +142,9 @@ export class BlueskyService {
       if (entry?.items?.length) {
         for (const post of entry.items) {
           try {
-            // Save post to database
-            await this.postsService.saveBlueskyPost(post);
+            // Save post to database - pass categories from post data if available
+            const categories = post.categories || [];
+            await this.postsService.saveBlueskyPost(post, categories);
 
             // Send to Telegram
             const isBreaking = (post.relevance ?? 0) >= 7;

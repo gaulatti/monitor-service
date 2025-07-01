@@ -3,12 +3,23 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // Create posts table with all fields
+    // Create posts table with refactored structure
     await queryInterface.createTable('posts', {
       id: {
-        type: Sequelize.CHAR(255),
+        type: Sequelize.INTEGER,
         primaryKey: true,
+        autoIncrement: true,
         allowNull: false,
+      },
+      uuid: {
+        type: Sequelize.STRING(255),
+        allowNull: false,
+        unique: true,
+      },
+      source_id: {
+        type: Sequelize.STRING(255),
+        allowNull: false,
+        comment: 'Original ID from the source (e.g., Bluesky post ID)',
       },
       source: {
         type: Sequelize.STRING(64),
@@ -50,32 +61,12 @@ module.exports = {
         type: Sequelize.STRING(500),
         allowNull: true,
       },
-      tags: {
-        type: Sequelize.JSON,
-        allowNull: true,
-      },
       media: {
         type: Sequelize.JSON,
         allowNull: true,
       },
       linkPreview: {
         type: Sequelize.STRING(500),
-        allowNull: true,
-      },
-      score: {
-        type: Sequelize.FLOAT,
-        allowNull: true,
-      },
-      scores: {
-        type: Sequelize.JSON,
-        allowNull: true,
-      },
-      categories: {
-        type: Sequelize.JSON,
-        allowNull: true,
-      },
-      labels: {
-        type: Sequelize.JSON,
         allowNull: true,
       },
       original: {
@@ -102,6 +93,10 @@ module.exports = {
       },
     });
 
+    // Add index on uuid for faster lookups
+    await queryInterface.addIndex('posts', ['uuid']);
+    await queryInterface.addIndex('posts', ['source_id']);
+
     // Create categories table
     await queryInterface.createTable('categories', {
       id: {
@@ -124,7 +119,7 @@ module.exports = {
     // Create taggings table (many-to-many relationship between posts and categories)
     await queryInterface.createTable('taggings', {
       post_id: {
-        type: Sequelize.CHAR(255),
+        type: Sequelize.INTEGER,
         primaryKey: true,
         allowNull: false,
         references: {
@@ -150,9 +145,15 @@ module.exports = {
     // Create events table
     await queryInterface.createTable('events', {
       id: {
-        type: Sequelize.CHAR(36),
+        type: Sequelize.INTEGER,
         primaryKey: true,
+        autoIncrement: true,
         allowNull: false,
+      },
+      uuid: {
+        type: Sequelize.STRING(36),
+        allowNull: false,
+        unique: true,
       },
       title: {
         type: Sequelize.TEXT,
@@ -179,10 +180,13 @@ module.exports = {
       },
     });
 
+    // Add index on events uuid
+    await queryInterface.addIndex('events', ['uuid']);
+
     // Create matches table (many-to-many relationship between events and posts)
     await queryInterface.createTable('matches', {
       event_id: {
-        type: Sequelize.CHAR(36),
+        type: Sequelize.INTEGER,
         primaryKey: true,
         allowNull: false,
         references: {
@@ -193,7 +197,7 @@ module.exports = {
         onDelete: 'CASCADE',
       },
       post_id: {
-        type: Sequelize.CHAR(255),
+        type: Sequelize.INTEGER,
         primaryKey: true,
         allowNull: false,
         references: {
@@ -221,12 +225,18 @@ module.exports = {
     // Create drafts table
     await queryInterface.createTable('drafts', {
       id: {
-        type: Sequelize.CHAR(36),
+        type: Sequelize.INTEGER,
         primaryKey: true,
+        autoIncrement: true,
         allowNull: false,
       },
+      uuid: {
+        type: Sequelize.STRING(36),
+        allowNull: false,
+        unique: true,
+      },
       event_id: {
-        type: Sequelize.CHAR(36),
+        type: Sequelize.INTEGER,
         allowNull: false,
         references: {
           model: 'events',
@@ -253,6 +263,9 @@ module.exports = {
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
       },
     });
+
+    // Add index on drafts uuid
+    await queryInterface.addIndex('drafts', ['uuid']);
   },
 
   async down(queryInterface, Sequelize) {

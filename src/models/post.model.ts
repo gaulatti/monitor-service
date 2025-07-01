@@ -7,6 +7,7 @@ import {
   Model,
   PrimaryKey,
   Table,
+  AutoIncrement,
 } from 'sequelize-typescript';
 import { Category } from './category.model';
 import { Match } from './match.model';
@@ -18,11 +19,24 @@ import { Tagging } from './tagging.model';
 })
 export class Post extends Model<Post> {
   @PrimaryKey
+  @AutoIncrement
   @Column({
-    type: DataType.CHAR(255),
+    type: DataType.INTEGER,
+  })
+  id: number;
+
+  @Column({
+    type: DataType.STRING(255),
+    allowNull: false,
+    unique: true,
+  })
+  uuid: string;
+
+  @Column({
+    type: DataType.STRING(255),
     allowNull: false,
   })
-  id: string;
+  source_id: string;
 
   @Column({
     type: DataType.STRING(64),
@@ -82,11 +96,6 @@ export class Post extends Model<Post> {
   @Column({
     type: DataType.JSON,
   })
-  tags: any;
-
-  @Column({
-    type: DataType.JSON,
-  })
   media: any;
 
   @Column({
@@ -95,24 +104,10 @@ export class Post extends Model<Post> {
   linkPreview: string;
 
   @Column({
-    type: DataType.FLOAT,
+    type: DataType.STRING,
+    allowNull: true,
   })
-  score: number;
-
-  @Column({
-    type: DataType.JSON,
-  })
-  scores: any;
-
-  @Column({
-    type: DataType.JSON,
-  })
-  categories: any;
-
-  @Column({
-    type: DataType.JSON,
-  })
-  labels: any;
+  original: string;
 
   // Legacy fields for backward compatibility
   @Column({
@@ -135,12 +130,6 @@ export class Post extends Model<Post> {
     type: DataType.JSON,
   })
   embedding: any;
-
-  @Column({
-    type: DataType.STRING,
-    allowNull: true,
-  })
-  original: string;
 
   // Relationships
   @BelongsToMany(() => Category, () => Tagging)

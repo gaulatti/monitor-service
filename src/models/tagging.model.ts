@@ -18,10 +18,10 @@ export class Tagging extends Model<Tagging> {
   @PrimaryKey
   @ForeignKey(() => Post)
   @Column({
-    type: DataType.CHAR(36),
+    type: DataType.INTEGER,
     allowNull: false,
   })
-  post_id: string;
+  post_id: number;
 
   @PrimaryKey
   @ForeignKey(() => Category)

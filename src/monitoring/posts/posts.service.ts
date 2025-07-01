@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { NotificationsService } from 'src/core/notifications/notifications.service';
 import { Category, Post, Tagging } from 'src/models';
+import { nanoid } from 'src/utils/nanoid';
 
 export interface PostResponseDto {
   id: string;
@@ -22,7 +23,7 @@ export interface NotificationPayload {
 }
 
 export interface BlueskyPostData {
-  id: string;
+  id: string; // This will become source_id
   source: string;
   uri: string;
   content: string;
@@ -35,13 +36,8 @@ export interface BlueskyPostData {
     handle: string;
     avatar: string;
   };
-  tags: string[];
   media: string[];
   linkPreview: string;
-  score: number | null;
-  scores: any[];
-  categories: string[];
-  labels: string[];
   original?: string;
 }
 
@@ -57,9 +53,12 @@ export class PostsService {
     private notificationsService: NotificationsService,
   ) {}
 
-  async saveBlueskyPost(postData: BlueskyPostData): Promise<Post> {
-    const categorySlugs = postData.categories || [];
-    const categories: Category[] = [];
+  async saveBlueskyPost(
+    postData: BlueskyPostData,
+    categories: string[] = [],
+  ): Promise<Post> {
+    const categorySlugs = categories || [];
+    const categoryModels: Category[] = [];
 
     for (const slug of categorySlugs) {
       const [category] = await this.categoryModel.findOrCreate({
@@ -69,13 +68,14 @@ export class PostsService {
           name: slug.charAt(0).toUpperCase() + slug.slice(1),
         } as any,
       });
-      categories.push(category);
+      categoryModels.push(category);
     }
 
     const [post] = await this.postModel.findOrCreate({
-      where: { id: postData.id },
+      where: { source_id: postData.id },
       defaults: {
-        id: postData.id,
+        uuid: nanoid(),
+        source_id: postData.id,
         source: postData.source,
         uri: postData.uri,
         content: postData.content,
@@ -86,12 +86,8 @@ export class PostsService {
         author_name: postData.author.name,
         author_handle: postData.author.handle,
         author_avatar: postData.author.avatar,
-        tags: postData.tags,
         media: postData.media,
         linkPreview: postData.linkPreview,
-        scores: postData.scores,
-        categories: postData.categories,
-        labels: postData.labels,
         original: postData.original,
         // Legacy fields for backward compatibility
         author: postData.author.name,
@@ -101,8 +97,8 @@ export class PostsService {
     });
 
     // Associate categories with the post
-    if (categories.length > 0) {
-      await post.$set('categories_relation', categories);
+    if (categoryModels.length > 0) {
+      await post.$set('categories_relation', categoryModels);
     }
 
     return post;
@@ -131,11 +127,11 @@ export class PostsService {
       ],
       order: [['posted_at', 'DESC']],
       limit: 30,
-      attributes: ['id', 'content', 'author', 'source', 'posted_at'],
+      attributes: ['uuid', 'content', 'author', 'source', 'posted_at'],
     });
 
     return posts.map((post) => ({
-      id: post.id,
+      id: post.uuid,
       content: post.content,
       author: post.author,
       source: post.source,
@@ -145,8 +141,9 @@ export class PostsService {
     }));
   }
 
-  async notifyNewPost(postId: string): Promise<void> {
-    const post = await this.postModel.findByPk(postId, {
+  async notifyNewPost(postUuid: string): Promise<void> {
+    const post = await this.postModel.findOne({
+      where: { uuid: postUuid },
       include: [
         {
           model: Category,
@@ -154,15 +151,15 @@ export class PostsService {
           attributes: ['slug'],
         },
       ],
-      attributes: ['id', 'content', 'source', 'posted_at'],
+      attributes: ['uuid', 'content', 'source', 'posted_at'],
     });
 
     if (!post) {
-      throw new Error(`Post with ID ${postId} not found`);
+      throw new Error(`Post with UUID ${postUuid} not found`);
     }
 
     const payload: NotificationPayload = {
-      id: post.id,
+      id: post.uuid,
       content: post.content,
       source: post.source,
       posted_at: post.posted_at.toISOString(),
