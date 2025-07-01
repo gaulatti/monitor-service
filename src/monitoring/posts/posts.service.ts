@@ -5,7 +5,7 @@ import { NotificationsService } from 'src/core/notifications/notifications.servi
 import { Category, Post, Tagging } from 'src/models';
 import { nanoid } from 'src/utils/nanoid';
 
-export interface PostResponseDto {
+export interface IngestResponseDto {
   id: string;
   content: string;
   author: string;
@@ -22,7 +22,7 @@ export interface NotificationPayload {
   categories: string[];
 }
 
-export interface PostIngestDto {
+export interface IngestDto {
   id: string; // This will become source_id
   source: string;
   uri: string;
@@ -53,8 +53,8 @@ export class PostsService {
     private notificationsService: NotificationsService,
   ) {}
 
-  async savePost(
-    postData: PostIngestDto,
+  async saveIngest(
+    ingestData: IngestDto,
     categories: string[] = [],
   ): Promise<Post> {
     const categorySlugs = categories || [];
@@ -72,26 +72,26 @@ export class PostsService {
     }
 
     const [post] = await this.postModel.findOrCreate({
-      where: { source_id: postData.id },
+      where: { source_id: ingestData.id },
       defaults: {
         uuid: nanoid(),
-        source_id: postData.id,
-        source: postData.source,
-        uri: postData.uri,
-        content: postData.content,
-        createdAt: new Date(postData.createdAt),
-        relevance: postData.relevance,
-        lang: postData.lang,
-        author_id: postData.author.id,
-        author_name: postData.author.name,
-        author_handle: postData.author.handle,
-        author_avatar: postData.author.avatar,
-        media: postData.media,
-        linkPreview: postData.linkPreview,
-        original: postData.original,
+        source_id: ingestData.id,
+        source: ingestData.source,
+        uri: ingestData.uri,
+        content: ingestData.content,
+        createdAt: new Date(ingestData.createdAt),
+        relevance: ingestData.relevance,
+        lang: ingestData.lang,
+        author_id: ingestData.author.id,
+        author_name: ingestData.author.name,
+        author_handle: ingestData.author.handle,
+        author_avatar: ingestData.author.avatar,
+        media: ingestData.media,
+        linkPreview: ingestData.linkPreview,
+        original: ingestData.original,
         // Legacy fields for backward compatibility
-        author: postData.author.name,
-        posted_at: new Date(postData.createdAt),
+        author: ingestData.author.name,
+        posted_at: new Date(ingestData.createdAt),
         received_at: new Date(),
       } as any,
     });
@@ -104,9 +104,9 @@ export class PostsService {
     return post;
   }
 
-  async getPostsByCategories(
+  async getIngestsByCategories(
     categorySlugs: string[],
-  ): Promise<PostResponseDto[]> {
+  ): Promise<IngestResponseDto[]> {
     const whereClause =
       categorySlugs.length > 0
         ? {
@@ -141,7 +141,7 @@ export class PostsService {
     }));
   }
 
-  async notifyNewPost(postUuid: string): Promise<void> {
+  async notifyNewIngest(postUuid: string): Promise<void> {
     const post = await this.postModel.findOne({
       where: { uuid: postUuid },
       include: [
