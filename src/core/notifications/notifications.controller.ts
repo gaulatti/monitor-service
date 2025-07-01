@@ -1,5 +1,5 @@
-import { Controller, MessageEvent, Sse, Res, Req, Get } from '@nestjs/common';
-import { Response, Request } from 'express';
+import { Controller, Get, MessageEvent, Req, Sse } from '@nestjs/common';
+import { Request } from 'express';
 import { Observable } from 'rxjs';
 import { Public } from 'src/decorators/public.decorator';
 import { NotificationsService } from './notifications.service';
@@ -18,16 +18,7 @@ export class NotificationsController {
    */
   @Sse()
   @Public()
-  connect(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ): Observable<MessageEvent> {
-    // Set SSE headers for better connection stability
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
-
+  connect(@Req() req: Request): Observable<MessageEvent> {
     // Handle client disconnect
     req.on('close', () => {
       // The connection cleanup is handled by the finalize operator in the service
