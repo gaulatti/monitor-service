@@ -22,7 +22,7 @@ export interface NotificationPayload {
   categories: string[];
 }
 
-export interface BlueskyPostData {
+export interface PostIngestDto {
   id: string; // This will become source_id
   source: string;
   uri: string;
@@ -53,8 +53,8 @@ export class PostsService {
     private notificationsService: NotificationsService,
   ) {}
 
-  async saveBlueskyPost(
-    postData: BlueskyPostData,
+  async savePost(
+    postData: PostIngestDto,
     categories: string[] = [],
   ): Promise<Post> {
     const categorySlugs = categories || [];

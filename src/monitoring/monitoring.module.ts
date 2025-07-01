@@ -1,15 +1,15 @@
 import { Module } from '@nestjs/common';
 import { CoreModule } from 'src/core/core.module';
 import { TelegramModule } from '../telegram/telegram.module';
-import { BlueskyController } from './bluesky/bluesky.controller';
-import { BlueskyService } from './bluesky/bluesky.service';
+import { PostIngestionController } from './post-ingestion/post-ingestion.controller';
+import { PostIngestionService } from './post-ingestion/post-ingestion.service';
 import { PostsController } from './posts/posts.controller';
 import { PostsService } from './posts/posts.service';
 import { DalModule } from 'src/dal/dal.module';
 
 @Module({
   imports: [TelegramModule, CoreModule, DalModule],
-  providers: [BlueskyService, PostsService],
-  controllers: [BlueskyController, PostsController],
+  providers: [PostIngestionService, PostsService],
+  controllers: [PostIngestionController, PostsController],
 })
 export class MonitoringModule {}

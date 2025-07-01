@@ -75,4 +75,4 @@ export class Event extends Model<Event> {
 
   @HasMany(() => Draft)
   drafts: Draft[];
-} 
+}

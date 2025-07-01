@@ -8,11 +8,11 @@ import { JSONLogger } from 'src/utils/logger';
 import { PostsService } from '../posts/posts.service';
 
 @Injectable()
-export class BlueskyService {
+export class PostIngestionService {
   /**
    * Logger instance for logging messages.
    */
-  @Logger(BlueskyService.name)
+  @Logger(PostIngestionService.name)
   private readonly logger!: JSONLogger;
 
   /**
@@ -34,18 +34,18 @@ export class BlueskyService {
   ) {}
 
   /**
-   * Monitors the Bluesky service by triggering the monitoring process.
+   * Monitors the post ingestion service by triggering the monitoring process.
    * Logs an error message if the monitoring process fails.
    *
    * @throws Logs an error if the monitoring process encounters an issue.
    */
   @Cron(`* * * * *`)
-  monitorBluesky() {
+  monitorPostIngestion() {
     try {
-      console.log('Monitoring from Bluesky');
+      console.log('Monitoring post ingestion');
       void this.trigger();
     } catch (error) {
-      this.logger.error('Monitoring from Bluesky failed:', error);
+      this.logger.error('Monitoring post ingestion failed:', error);
     }
   }
 
@@ -83,21 +83,30 @@ export class BlueskyService {
   }
 
   /**
-   * Helper to format a Bluesky post as a Telegram message (final schema).
-   * @param post The Bluesky post object (final schema)
+   * Helper to format a post as a Telegram message (final schema).
+   * @param post The post object (final schema)
    * @param breaking Whether this is a breaking item (for special formatting)
    */
-  private formatBlueskyMessage(post: any, breaking = false): string {
+  private formatPostMessage(post: any, breaking = false): string {
     const text = post?.content || '';
     const handle = post?.author?.handle || '';
     const name = post?.author?.name || '';
     const mediaArr: string[] = Array.isArray(post?.media) ? post.media : [];
     const linkPreview = post?.linkPreview;
     const uri = post?.uri;
+    const source = post?.source || '';
     let link = '';
+
+    // Generate source-specific link
     if (uri && handle) {
-      link = `https://bsky.app/profile/${handle}/post/${uri.split('/').pop()}`;
+      if (source.toLowerCase() === 'bluesky') {
+        link = `https://bsky.app/profile/${handle}/post/${uri.split('/').pop()}`;
+      } else {
+        // For other sources, use the URI directly if it's a valid URL
+        link = uri.startsWith('http') ? uri : '';
+      }
     }
+
     let msg = '';
     if (breaking) {
       msg += '🚨 <b>BREAKING</b> 🚨\n';
@@ -112,7 +121,12 @@ export class BlueskyService {
     if (linkPreview) {
       msg += `[Link Preview](${linkPreview})\n`;
     }
-    if (link) msg += `[View on Bluesky](${link})`;
+    if (link) {
+      const linkText = source
+        ? `View on ${source.charAt(0).toUpperCase() + source.slice(1)}`
+        : 'View Post';
+      msg += `[${linkText}](${link})`;
+    }
 
     return msg;
   }
@@ -144,11 +158,11 @@ export class BlueskyService {
           try {
             // Save post to database - pass categories from post data if available
             const categories = post.categories || [];
-            await this.postsService.saveBlueskyPost(post, categories);
+            await this.postsService.savePost(post, categories);
 
             // Send to Telegram
             const isBreaking = (post.relevance ?? 0) >= 7;
-            const msg = this.formatBlueskyMessage(post, isBreaking);
+            const msg = this.formatPostMessage(post, isBreaking);
             await this.telegramService.sendMessage(msg);
           } catch (error) {
             this.logger.error(`Error processing post ${post.id}:`, error);

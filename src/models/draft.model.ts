@@ -64,4 +64,4 @@ export class Draft extends Model<Draft> {
   // Relationships
   @BelongsTo(() => Event)
   event: Event;
-} 
+}

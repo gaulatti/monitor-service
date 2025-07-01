@@ -1,16 +1,16 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { Public } from 'src/decorators/public.decorator';
-import { BlueskyService } from './bluesky.service';
+import { PostIngestionService } from './post-ingestion.service';
 
 /**
- * Controller class for handling Bluesky related operations.
+ * Controller class for handling post ingestion operations.
  */
 @Controller()
-export class BlueskyController {
+export class PostIngestionController {
   /**
-   * Constructs a new instance of the BlueskyController.
+   * Constructs a new instance of the PostIngestionController.
    */
-  constructor(private readonly blueskyService: BlueskyService) {}
+  constructor(private readonly postIngestionService: PostIngestionService) {}
 
   /**
    * Handles the delivery of input data from the workflow.
@@ -21,6 +21,6 @@ export class BlueskyController {
   @Post()
   @Public()
   deliver(@Body() { input }) {
-    void this.blueskyService.receive(input);
+    void this.postIngestionService.receive(input);
   }
 }
