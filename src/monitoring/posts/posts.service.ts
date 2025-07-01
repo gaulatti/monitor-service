@@ -73,7 +73,7 @@ export class PostsService {
       categoryModels.push(category);
     }
 
-    const [post] = await this.postModel.findOrCreate({
+    const [post, created] = await this.postModel.findOrCreate({
       where: { source_id: ingestData.id },
       defaults: {
         uuid: nanoid(),
@@ -101,6 +101,16 @@ export class PostsService {
     // Associate categories with the post
     if (categoryModels.length > 0) {
       await post.$set('categories_relation', categoryModels);
+    }
+
+    // Notify about new post if it was just created
+    if (created) {
+      try {
+        await this.notifyNewIngest(post.uuid);
+      } catch (error) {
+        // Log error but don't fail the post creation
+        console.error('Failed to send notification for new post:', error);
+      }
     }
 
     return post;

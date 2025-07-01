@@ -70,13 +70,21 @@ export class NotificationsService
   connect(): Observable<MessageEvent> {
     const clientId = this.generateClientId();
     const observable = this.globalSubject.pipe(
-      filter((event) => !event.clientId || event.clientId === clientId),
+      filter((event) => {
+        const shouldPass = !event.clientId || event.clientId === clientId;
+        this.logger.debug(
+          `Filter check for client ${clientId}: ${shouldPass}`,
+          event,
+        );
+        return shouldPass;
+      }),
       map((event) => event.message),
     );
 
     this.clients[clientId] = { id: clientId };
 
     this.logger.log(`Client connected: ${clientId}`);
+    this.logger.log(`Total clients: ${Object.keys(this.clients).length}`);
     return observable;
   }
 
@@ -122,6 +130,11 @@ export class NotificationsService
    * @param message - The message object to be broadcasted. It will be serialized to a JSON string.
    */
   broadcast(message: object) {
-    this.globalSubject.next({ message: { data: JSON.stringify(message) } });
+    const notificationMessage = { message: { data: JSON.stringify(message) } };
+    this.logger.log(
+      `Broadcasting message to ${Object.keys(this.clients).length} clients`,
+    );
+    this.logger.debug('Broadcast message:', notificationMessage);
+    this.globalSubject.next(notificationMessage);
   }
 }
