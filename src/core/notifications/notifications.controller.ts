@@ -18,12 +18,7 @@ export class NotificationsController {
    */
   @Sse()
   @Public()
-  connect(@Req() req: Request): Observable<MessageEvent> {
-    // Handle client disconnect
-    req.on('close', () => {
-      // The connection cleanup is handled by the finalize operator in the service
-    });
-
+  connect(): Observable<MessageEvent> {
     return this.notificationsService.connect();
   }
 
