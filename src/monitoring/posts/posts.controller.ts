@@ -20,10 +20,9 @@ export class PostsController {
 
   @Get()
   async getPosts(@Query() query: GetPostsQueryDto): Promise<PostResponseDto[]> {
-    const categories = query.categories
-      ?.split(',')
-      .map((cat) => cat.trim()) || [];
+    const categories =
+      query.categories?.split(',').map((cat) => cat.trim()) || [];
 
     return await this.postsService.getPostsByCategories(categories);
   }
-} 
+}

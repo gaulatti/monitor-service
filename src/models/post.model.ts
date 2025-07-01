@@ -1,18 +1,16 @@
 import {
-  Table,
-  Column,
-  Model,
-  DataType,
-  PrimaryKey,
   AllowNull,
-  HasMany,
   BelongsToMany,
-  CreatedAt,
-  UpdatedAt,
+  Column,
+  DataType,
+  HasMany,
+  Model,
+  PrimaryKey,
+  Table,
 } from 'sequelize-typescript';
 import { Category } from './category.model';
-import { Tagging } from './tagging.model';
 import { Match } from './match.model';
+import { Tagging } from './tagging.model';
 
 @Table({
   tableName: 'posts',
@@ -21,10 +19,22 @@ import { Match } from './match.model';
 export class Post extends Model<Post> {
   @PrimaryKey
   @Column({
-    type: DataType.CHAR(36),
+    type: DataType.CHAR(255),
     allowNull: false,
   })
   id: string;
+
+  @Column({
+    type: DataType.STRING(64),
+    allowNull: false,
+  })
+  source: string;
+
+  @Column({
+    type: DataType.STRING(255),
+    allowNull: false,
+  })
+  uri: string;
 
   @AllowNull(false)
   @Column({
@@ -33,14 +43,82 @@ export class Post extends Model<Post> {
   content: string;
 
   @Column({
+    type: DataType.DATE,
+    allowNull: false,
+  })
+  createdAt: Date;
+
+  @Column({
+    type: DataType.FLOAT,
+    allowNull: false,
+  })
+  relevance: number;
+
+  @Column({
+    type: DataType.STRING(8),
+  })
+  lang: string;
+
+  @Column({
+    type: DataType.STRING(255),
+  })
+  author_id: string;
+
+  @Column({
+    type: DataType.STRING(255),
+  })
+  author_name: string;
+
+  @Column({
+    type: DataType.STRING(255),
+  })
+  author_handle: string;
+
+  @Column({
+    type: DataType.STRING(500),
+  })
+  author_avatar: string;
+
+  @Column({
+    type: DataType.JSON,
+  })
+  tags: any;
+
+  @Column({
+    type: DataType.JSON,
+  })
+  media: any;
+
+  @Column({
+    type: DataType.STRING(500),
+  })
+  linkPreview: string;
+
+  @Column({
+    type: DataType.FLOAT,
+  })
+  score: number;
+
+  @Column({
+    type: DataType.JSON,
+  })
+  scores: any;
+
+  @Column({
+    type: DataType.JSON,
+  })
+  categories: any;
+
+  @Column({
+    type: DataType.JSON,
+  })
+  labels: any;
+
+  // Legacy fields for backward compatibility
+  @Column({
     type: DataType.STRING(128),
   })
   author: string;
-
-  @Column({
-    type: DataType.STRING(64),
-  })
-  source: string;
 
   @Column({
     type: DataType.DATE,
@@ -59,14 +137,15 @@ export class Post extends Model<Post> {
   embedding: any;
 
   @Column({
-    type: DataType.STRING(8),
+    type: DataType.STRING,
+    allowNull: true,
   })
-  lang: string;
+  original: string;
 
   // Relationships
   @BelongsToMany(() => Category, () => Tagging)
-  categories: Category[];
+  categories_relation: Category[];
 
   @HasMany(() => Match)
   matches: Match[];
-} 
+}

@@ -5,6 +5,7 @@ import { CloudWatchService } from 'src/core/cloudwatch/cloudwatch.service';
 import { Logger } from 'src/decorators/logger.decorator';
 import { TelegramService } from 'src/telegram/telegram.service';
 import { JSONLogger } from 'src/utils/logger';
+import { PostsService } from '../posts/posts.service';
 
 @Injectable()
 export class BlueskyService {
@@ -29,6 +30,7 @@ export class BlueskyService {
   constructor(
     private readonly telegramService: TelegramService,
     private readonly cloudWatchService: CloudWatchService,
+    private readonly postsService: PostsService,
   ) {}
 
   /**
@@ -139,9 +141,17 @@ export class BlueskyService {
       });
       if (entry?.items?.length) {
         for (const post of entry.items) {
-          const isBreaking = (post.relevance ?? 0) >= 7;
-          const msg = this.formatBlueskyMessage(post, isBreaking);
-          await this.telegramService.sendMessage(msg);
+          try {
+            // Save post to database
+            await this.postsService.saveBlueskyPost(post);
+
+            // Send to Telegram
+            const isBreaking = (post.relevance ?? 0) >= 7;
+            const msg = this.formatBlueskyMessage(post, isBreaking);
+            await this.telegramService.sendMessage(msg);
+          } catch (error) {
+            this.logger.error(`Error processing post ${post.id}:`, error);
+          }
         }
       }
     }
