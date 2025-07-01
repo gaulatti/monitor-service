@@ -18,6 +18,8 @@ export interface NotificationPayload {
   id: string;
   content: string;
   source: string;
+  relevance: number;
+  author: string;
   posted_at: string;
   categories: string[];
 }
@@ -121,13 +123,20 @@ export class PostsService {
       include: [
         {
           model: Category,
-          through: { attributes: [] }, // Exclude join table attributes
+          through: { attributes: [] },
           attributes: ['slug'],
         },
       ],
       order: [['posted_at', 'DESC']],
       limit: 50,
-      attributes: ['uuid', 'content', 'author', 'source', 'posted_at'],
+      attributes: [
+        'uuid',
+        'content',
+        'relevance',
+        'author',
+        'source',
+        'posted_at',
+      ],
     });
 
     return posts.map((post) => ({
@@ -135,6 +144,7 @@ export class PostsService {
       content: post.content,
       author: post.author,
       source: post.source,
+      relevance: post.relevance,
       posted_at: post.posted_at,
       categories:
         post.categories_relation?.map((category) => category.slug) || [],
@@ -151,7 +161,14 @@ export class PostsService {
           attributes: ['slug'],
         },
       ],
-      attributes: ['uuid', 'content', 'source', 'posted_at'],
+      attributes: [
+        'uuid',
+        'content',
+        'source',
+        'author',
+        'relevance',
+        'posted_at',
+      ],
     });
 
     if (!post) {
@@ -162,6 +179,8 @@ export class PostsService {
       id: post.uuid,
       content: post.content,
       source: post.source,
+      author: post.author,
+      relevance: post.relevance,
       posted_at: post.posted_at.toISOString(),
       categories:
         post.categories_relation?.map((category) => category.slug) || [],
