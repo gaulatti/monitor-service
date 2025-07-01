@@ -1,31 +1,51 @@
-require('dotenv').config();
+/* eslint-disable @typescript-eslint/no-require-imports */
+const dotenv = require('dotenv');
+const {
+  SecretsManagerClient,
+  GetSecretValueCommand,
+} = require('@aws-sdk/client-secrets-manager');
 
-module.exports = {
-  development: {
-    username: process.env.DB_USERNAME || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'monitor_dev',
-    host: process.env.DB_HOST || '127.0.0.1',
-    port: process.env.DB_PORT || 3306,
+/**
+ * Retrieves the database credentials from AWS Secrets Manager.
+ */
+dotenv.config();
+
+async function getDatabaseCredentials() {
+  if (!process.env.DB_CREDENTIALS) {
+    throw new Error('DB_CREDENTIALS environment variable is not set.');
+  }
+
+  const secretsManager = new SecretsManagerClient({
+    region: process.env.AWS_REGION,
+  });
+
+  try {
+    const secretResponse = await secretsManager.send(
+      new GetSecretValueCommand({
+        SecretId: process.env.DB_CREDENTIALS,
+      }),
+    );
+
+    if (secretResponse.SecretString) {
+      return JSON.parse(secretResponse.SecretString);
+    }
+
+    throw new Error('SecretString not found in the response.');
+  } catch (error) {
+    console.error('Failed to retrieve database credentials:', error);
+    throw error;
+  }
+}
+
+module.exports = (async () => {
+  const credentials = await getDatabaseCredentials();
+
+  return {
+    username: credentials.username,
+    password: credentials.password,
+    database: process.env.DB_DATABASE,
+    host: credentials.host,
+    port: credentials.port || 3306,
     dialect: 'mysql',
-    logging: console.log,
-  },
-  test: {
-    username: process.env.DB_USERNAME || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'monitor_test',
-    host: process.env.DB_HOST || '127.0.0.1',
-    port: process.env.DB_PORT || 3306,
-    dialect: 'mysql',
-    logging: false,
-  },
-  production: {
-    username: process.env.DB_USERNAME,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT || 3306,
-    dialect: 'mysql',
-    logging: false,
-  },
-}; 
+  };
+})();
