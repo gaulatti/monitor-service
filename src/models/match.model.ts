@@ -56,4 +56,4 @@ export class Match extends Model<Match> {
 
   @BelongsTo(() => Post)
   post: Post;
-} 
+}

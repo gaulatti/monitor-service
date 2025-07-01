@@ -96,7 +96,7 @@ export class PostIngestionService {
     const uri = post?.uri;
     const source = post?.source || '';
     let link = '';
-    
+
     // Generate source-specific link
     if (uri && handle) {
       if (source.toLowerCase() === 'bluesky') {
@@ -106,7 +106,7 @@ export class PostIngestionService {
         link = uri.startsWith('http') ? uri : '';
       }
     }
-    
+
     let msg = '';
     if (breaking) {
       msg += '🚨 <b>BREAKING</b> 🚨\n';
@@ -122,7 +122,9 @@ export class PostIngestionService {
       msg += `[Link Preview](${linkPreview})\n`;
     }
     if (link) {
-      const linkText = source ? `View on ${source.charAt(0).toUpperCase() + source.slice(1)}` : 'View Post';
+      const linkText = source
+        ? `View on ${source.charAt(0).toUpperCase() + source.slice(1)}`
+        : 'View Post';
       msg += `[${linkText}](${link})`;
     }
 

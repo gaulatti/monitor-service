@@ -37,4 +37,4 @@ export class Tagging extends Model<Tagging> {
 
   @BelongsTo(() => Category)
   category: Category;
-} 
+}

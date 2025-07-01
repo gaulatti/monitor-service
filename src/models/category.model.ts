@@ -40,4 +40,4 @@ export class Category extends Model<Category> {
   // Relationships
   @BelongsToMany(() => Post, () => Tagging)
   posts: Post[];
-} 
+}
