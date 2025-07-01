@@ -8,11 +8,11 @@ import { JSONLogger } from 'src/utils/logger';
 import { PostsService } from '../posts/posts.service';
 
 @Injectable()
-export class BlueskyService {
+export class PostIngestionService {
   /**
    * Logger instance for logging messages.
    */
-  @Logger(BlueskyService.name)
+  @Logger(PostIngestionService.name)
   private readonly logger!: JSONLogger;
 
   /**

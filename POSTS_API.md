@@ -41,7 +41,7 @@ GET /posts?categories=politics
     "id": "another-post-uuid",
     "content": "Another post content...",
     "author": "Jane Smith",
-    "source": "bluesky",
+    "source": "twitter",
     "posted_at": "2025-01-15T09:15:00.000Z",
     "categories": ["politics"]
   }
@@ -81,7 +81,7 @@ Loads a post and its categories, then broadcasts a notification via SSE.
 {
   "id": "post-id",
   "content": "post content",
-  "source": "bluesky",
+  "source": "twitter",
   "posted_at": "2025-06-26T18:00:00Z",
   "categories": ["breaking", "politics"]
 }
