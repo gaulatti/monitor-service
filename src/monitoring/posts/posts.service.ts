@@ -119,14 +119,18 @@ export class PostsService {
   async getIngestsByCategories(
     categorySlugs: string[],
   ): Promise<IngestResponseDto[]> {
-    const whereClause =
-      categorySlugs.length > 0
-        ? {
-            '$categories_relation.slug$': {
-              [Op.in]: categorySlugs,
-            },
-          }
-        : {};
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+    const whereClause = {
+      createdAt: {
+        [Op.gte]: oneHourAgo,
+      },
+      ...(categorySlugs.length > 0 && {
+        '$categories_relation.slug$': {
+          [Op.in]: categorySlugs,
+        },
+      }),
+    };
 
     const posts = await this.postModel.findAll({
       where: whereClause,
@@ -137,8 +141,7 @@ export class PostsService {
           attributes: ['slug'],
         },
       ],
-      order: [['posted_at', 'DESC']],
-      limit: 50,
+      order: [['createdAt', 'DESC']],
       attributes: [
         'uuid',
         'content',
