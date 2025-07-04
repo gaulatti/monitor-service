@@ -186,11 +186,11 @@ export class NotificationsService
   onApplicationShutdown(): void {
     const clientIds = Object.keys(this.clients);
     this.logger.log(`Shutting down, disconnecting ${clientIds.length} clients`);
-    
+
     for (const clientId of clientIds) {
       this.disconnect(clientId);
     }
-    
+
     // Complete all subjects
     this.disconnectSubject.complete();
     this.globalSubject.complete();

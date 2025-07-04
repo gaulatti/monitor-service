@@ -1,5 +1,4 @@
-import { Controller, Get, MessageEvent, Req, Sse } from '@nestjs/common';
-import { Request } from 'express';
+import { Controller, Get, MessageEvent, Sse } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { Public } from 'src/decorators/public.decorator';
 import { NotificationsService } from './notifications.service';
@@ -12,8 +11,6 @@ export class NotificationsController {
    * Establishes a connection to the notifications service and returns an observable
    * that emits MessageEvent objects.
    *
-   * @param req - The HTTP request object
-   * @param res - The HTTP response object
    * @returns {Observable<MessageEvent>} An observable that emits MessageEvent objects.
    */
   @Sse()

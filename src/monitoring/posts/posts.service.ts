@@ -119,11 +119,11 @@ export class PostsService {
   async getIngestsByCategories(
     categorySlugs: string[],
   ): Promise<IngestResponseDto[]> {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const threeHoursAgo = new Date(Date.now() - 60 * 60 * 1000 * 3);
 
     const whereClause = {
       createdAt: {
-        [Op.gte]: oneHourAgo,
+        [Op.gte]: threeHoursAgo,
       },
       ...(categorySlugs.length > 0 && {
         '$categories_relation.slug$': {
