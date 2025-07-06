@@ -74,45 +74,40 @@ export class PostsService {
       categoryModels.push(category);
     }
 
-    const [post, created] = await this.postModel.findOrCreate({
-      where: { source_id: ingestData.id },
-      defaults: {
-        uuid: nanoid(),
-        source_id: ingestData.id,
-        source: ingestData.source,
-        uri: ingestData.uri,
-        content: ingestData.content,
-        createdAt: new Date(ingestData.createdAt),
-        relevance: ingestData.relevance,
-        lang: ingestData.lang,
-        hash: ingestData.hash,
-        author_id: ingestData.author.id,
-        author_name: ingestData.author.name,
-        author_handle: ingestData.author.handle,
-        author_avatar: ingestData.author.avatar,
-        media: ingestData.media,
-        linkPreview: ingestData.linkPreview,
-        original: ingestData.original,
-        // Legacy fields for backward compatibility
-        author: ingestData.author.name,
-        posted_at: new Date(ingestData.createdAt),
-        received_at: new Date(),
-      } as any,
-    });
+    const post = await this.postModel.create({
+      uuid: nanoid(),
+      source_id: ingestData.id,
+      source: ingestData.source,
+      uri: ingestData.uri,
+      content: ingestData.content,
+      createdAt: new Date(ingestData.createdAt),
+      relevance: ingestData.relevance,
+      lang: ingestData.lang,
+      hash: ingestData.hash,
+      author_id: ingestData.author.id,
+      author_name: ingestData.author.name,
+      author_handle: ingestData.author.handle,
+      author_avatar: ingestData.author.avatar,
+      media: ingestData.media,
+      linkPreview: ingestData.linkPreview,
+      original: ingestData.original,
+      // Legacy fields for backward compatibility
+      author: ingestData.author.name,
+      posted_at: new Date(ingestData.createdAt),
+      received_at: new Date(),
+    } as any);
 
     // Associate categories with the post
     if (categoryModels.length > 0) {
       await post.$set('categories_relation', categoryModels);
     }
 
-    // Notify about new post if it was just created
-    if (created) {
-      try {
-        await this.notifyNewIngest(post.uuid);
-      } catch (error) {
-        // Log error but don't fail the post creation
-        console.error('Failed to send notification for new post:', error);
-      }
+    // Notify about the new post
+    try {
+      await this.notifyNewIngest(post.uuid);
+    } catch (error) {
+      // Log error but don't fail the post creation
+      console.error('Failed to send notification for new post:', error);
     }
 
     return post;

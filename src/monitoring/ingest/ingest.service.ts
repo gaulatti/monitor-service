@@ -39,7 +39,7 @@ export class IngestService {
    *
    * @throws Logs an error if the monitoring process encounters an issue.
    */
-  // @Cron(`* * * * *`)
+  @Cron(`* * * * *`)
   monitorIngest() {
     try {
       console.log('Monitoring content ingestion');
