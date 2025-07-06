@@ -32,6 +32,7 @@ export interface IngestDto {
   createdAt: string;
   relevance: number;
   lang: string;
+  hash: string; // SHA256 hash of the content
   author: {
     id: string;
     name: string;
@@ -84,6 +85,7 @@ export class PostsService {
         createdAt: new Date(ingestData.createdAt),
         relevance: ingestData.relevance,
         lang: ingestData.lang,
+        hash: ingestData.hash,
         author_id: ingestData.author.id,
         author_name: ingestData.author.name,
         author_handle: ingestData.author.handle,
@@ -200,5 +202,28 @@ export class PostsService {
     };
 
     this.notificationsService.broadcast(payload);
+  }
+
+  async dedupPosts(body: { input: string[] }): Promise<string[]> {
+    const { input: hashes } = body;
+
+    if (!hashes || !Array.isArray(hashes)) {
+      return [];
+    }
+
+    // Find posts that exist in the database with any of the provided hashes
+    const existingPosts = await this.postModel.findAll({
+      where: {
+        hash: {
+          [Op.in]: hashes,
+        },
+      },
+      attributes: ['hash'],
+    });
+
+    // Extract the hashes that exist in the database
+    const existingHashes = existingPosts.map((post) => post.hash);
+
+    return existingHashes;
   }
 }

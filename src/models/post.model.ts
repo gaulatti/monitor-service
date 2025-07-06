@@ -104,6 +104,12 @@ export class Post extends Model<Post> {
   linkPreview: string;
 
   @Column({
+    type: DataType.STRING(64),
+    allowNull: true,
+  })
+  hash: string;
+
+  @Column({
     type: DataType.STRING,
     allowNull: true,
   })
