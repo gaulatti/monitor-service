@@ -139,12 +139,7 @@ export class IngestService {
           this.topicsQueue.set(key, newValue);
         });
       }
-      this.topicsQueue.forEach((value, key) => {
-        void this.cloudWatchService.sendMetric('TrendingKeywords', value, {
-          Keyword: key,
-          Service: 'Monitor/Keywords',
-        });
-      });
+
       if (entry?.items?.length) {
         for (const ingest of entry.items) {
           try {
