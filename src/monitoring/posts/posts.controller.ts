@@ -1,14 +1,7 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { Public } from 'src/decorators/public.decorator';
-import { IngestResponseDto, PostsService } from './posts.service';
-
-export interface GetIngestsQueryDto {
-  categories?: string;
-}
-
-export interface DedupRequestDto {
-  input: string[];
-}
+import { DedupRequestDto, GetIngestsQueryDto, PostResponseDto } from 'src/dto';
+import { PostsService } from './posts.service';
 
 @Controller('posts')
 export class PostsController {
@@ -18,16 +11,16 @@ export class PostsController {
   @Public()
   async getPosts(
     @Query() query: GetIngestsQueryDto,
-  ): Promise<IngestResponseDto[]> {
+  ): Promise<PostResponseDto[]> {
     const categories =
       query.categories?.split(',').map((cat) => cat.trim()) || [];
 
-    return await this.postsService.getIngestsByCategories(categories);
+    return await this.postsService.getPostsByCategories(categories);
   }
 
   @Post('dedup')
   @Public()
-  async dedup(@Body() body: any) {
+  async dedup(@Body() body: DedupRequestDto) {
     return await this.postsService.dedupPosts(body);
   }
 }

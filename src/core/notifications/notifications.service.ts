@@ -7,16 +7,17 @@ import {
   Observable,
   Subject,
   filter,
-  map,
-  startWith,
-  mergeWith,
-  interval,
   finalize,
+  interval,
+  map,
+  mergeWith,
+  startWith,
 } from 'rxjs';
 import { Logger } from 'src/decorators/logger.decorator';
 import { JSONLogger } from 'src/utils/logger';
 import { CommonNotifications } from './common.notifications';
 import { INotificationsService } from './notifications.service.interface';
+
 /**
  * Represents a client that receives notifications.
  *
@@ -88,8 +89,9 @@ export class NotificationsService
   connect(): Observable<MessageEvent> {
     const clientId = this.generateClientId();
 
-    // Create keepalive observable that sends ping every 25 seconds
-    // Use 25 seconds instead of 30 to ensure we stay ahead of typical timeout settings
+    /**
+     * Create a keepalive observable that emits a ping message every 25 seconds.
+     */
     const keepalive$ = interval(25000).pipe(
       map(
         () =>
@@ -103,7 +105,9 @@ export class NotificationsService
       ),
     );
 
-    // Create data observable for actual messages
+    /**
+     * Filter the global subject to only emit messages for the current client ID.
+     */
     const data$ = this.globalSubject.pipe(
       filter((event) => {
         const shouldPass = !event.clientId || event.clientId === clientId;
@@ -116,7 +120,9 @@ export class NotificationsService
       map((event) => event.message),
     );
 
-    // Combine data and keepalive streams
+    /**
+     * Combine the data observable with the keepalive observable.
+     */
     const observable = data$.pipe(
       mergeWith(keepalive$),
       startWith({
@@ -127,13 +133,14 @@ export class NotificationsService
         }),
       } as MessageEvent),
       finalize(() => {
-        // Clean up client when the observable is torn down (client disconnected)
+        /**
+         * Cleanup the client when the observable is torn down.
+         */
         this.cleanupClient(clientId);
       }),
     );
 
     this.clients[clientId] = { id: clientId };
-
     this.logger.log(`Client connected: ${clientId}`);
     this.logger.log(`Total clients: ${Object.keys(this.clients).length}`);
 
@@ -170,7 +177,10 @@ export class NotificationsService
   disconnect(clientId: string) {
     if (this.clients[clientId]) {
       delete this.clients[clientId];
-      // Emit to disconnectSubject to complete the observable
+
+      /**
+       * Emit a disconnect event to the disconnectSubject.
+       */
       this.disconnectSubject.next(clientId);
       this.logger.log(`Client disconnected: ${clientId}`);
       this.logger.log(`Total clients: ${Object.keys(this.clients).length}`);

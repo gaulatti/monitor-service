@@ -1,12 +1,37 @@
 import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { InjectModel } from '@nestjs/sequelize';
 import axios from 'axios';
-import { CloudWatchService } from 'src/core/cloudwatch/cloudwatch.service';
 import { Logger } from 'src/decorators/logger.decorator';
-import { TelegramService } from 'src/telegram/telegram.service';
+import { IngestDto } from 'src/dto';
+import { Category, Post } from 'src/models';
 import { JSONLogger } from 'src/utils/logger';
+import { nanoid } from 'src/utils/nanoid';
 import { PostsService } from '../posts/posts.service';
 
+/**
+ * Service responsible for ingesting, processing, and monitoring content within the application.
+ *
+ * The `IngestService` handles:
+ * - Managing a queue of topic keywords and their frequencies.
+ * - Periodically triggering monitoring and ingestion processes.
+ * - Sending top keywords to an external n8n webhook for further processing.
+ * - Saving ingested posts to the database and associating them with categories.
+ * - Notifying other services about new ingested posts.
+ * - Receiving and processing incoming data payloads, updating the topics queue, and persisting content.
+ *
+ * Dependencies:
+ * - `Post` and `Category` models for database operations.
+ * - `PostsService` for post-related business logic and notifications.
+ *
+ * Environment Variables:
+ * - `N8N_WEBHOOK`: URL for the n8n webhook endpoint.
+ * - `N8N_API_KEY`: API key for authenticating requests to the n8n webhook.
+ *
+ * @remarks
+ * This service is designed to be extensible and integrates with external automation tools (like n8n)
+ * for further processing of trending topics and ingested content.
+ */
 @Injectable()
 export class IngestService {
   /**
@@ -28,8 +53,10 @@ export class IngestService {
   );
 
   constructor(
-    private readonly telegramService: TelegramService,
-    private readonly cloudWatchService: CloudWatchService,
+    @InjectModel(Post)
+    private postModel: typeof Post,
+    @InjectModel(Category)
+    private categoryModel: typeof Category,
     private readonly postsService: PostsService,
   ) {}
 
@@ -49,6 +76,18 @@ export class IngestService {
     }
   }
 
+  /**
+   * Triggers the process of sending the top keywords from the topics queue to an n8n webhook for further processing.
+   *
+   * This method:
+   * - Sorts the topics queue by frequency in descending order.
+   * - Selects the top 5 keywords.
+   * - Logs the current state of the topics queue, the top 10 sorted entries, and the top keywords being sent.
+   * - Sends a POST request to the configured n8n webhook with the top keywords and a fixed 'since' value.
+   *
+   * @remarks
+   * The n8n webhook URL and API key are expected to be provided via environment variables `N8N_WEBHOOK` and `N8N_API_KEY`.
+   */
   trigger() {
     /**
      * Sends the top keywords to the n8n webhook for further processing.
@@ -57,17 +96,15 @@ export class IngestService {
       (a, b) => b[1] - a[1],
     );
 
+    /**
+     * Log the current state of the topics queue.
+     */
     const topKeywords = sortedEntries.slice(0, 5).map(([keyword]) => keyword);
 
-    this.logger.debug(
-      'Topics queue:',
-      JSON.stringify(Object.fromEntries(this.topicsQueue), null, 2),
-    );
-
-    this.logger.debug('Sorted entries (top 10):', sortedEntries.slice(0, 10));
-
-    this.logger.debug('Top keywords being sent:', topKeywords);
-
+    /**
+     * Trigger n8n with the top keywords.
+     * This is used to update the topics queue with the most relevant keywords.
+     */
     void axios.post(
       process.env.N8N_WEBHOOK!,
       {
@@ -83,44 +120,76 @@ export class IngestService {
   }
 
   /**
-   * Helper to format an ingested item as a Telegram message.
-   * @param ingest The ingested item object
-   * @param breaking Whether this is a breaking item (for special formatting)
+   * Saves an ingested post to the database and sends notifications.
+   *
+   * @param ingestData - The ingested post data
+   * @param categories - Array of category slugs to associate with the post
+   * @returns The created post
    */
-  private formatIngestMessage(ingest: any, breaking = false): string {
-    const text = ingest?.content || '';
-    const handle = ingest?.author?.handle || '';
-    const name = ingest?.author?.name || '';
-    const mediaArr: string[] = Array.isArray(ingest?.media) ? ingest.media : [];
-    const linkPreview = ingest?.linkPreview;
-    const uri = ingest?.uri;
-    const source = ingest?.source || '';
+  async savePost(
+    ingestData: IngestDto,
+    categories: string[] = [],
+  ): Promise<Post> {
+    const categorySlugs = categories || [];
+    const categoryModels: Category[] = [];
 
-    // Use the URI directly if it's a valid URL, otherwise leave link empty
-    const link = uri && uri.startsWith('http') ? uri : '';
-
-    let msg = '';
-    if (breaking) {
-      msg += '🚨 <b>BREAKING</b> 🚨\n';
-    }
-    msg += `<b>@${handle}</b>`;
-    if (name) msg += ` (${name})`;
-    msg += '\n';
-    if (text) msg += `<i>${text}</i>\n`;
-    if (mediaArr.length > 0) {
-      msg += mediaArr.map((m, i) => `[Media ${i + 1}](${m})`).join('\n') + '\n';
-    }
-    if (linkPreview) {
-      msg += `[Link Preview](${linkPreview})\n`;
-    }
-    if (link) {
-      const linkText = source
-        ? `View on ${source.charAt(0).toUpperCase() + source.slice(1)}`
-        : 'View Content';
-      msg += `[${linkText}](${link})`;
+    for (const slug of categorySlugs) {
+      const [category] = await this.categoryModel.findOrCreate({
+        where: { slug },
+        defaults: {
+          slug,
+          name: slug.charAt(0).toUpperCase() + slug.slice(1),
+        } as any,
+      });
+      categoryModels.push(category);
     }
 
-    return msg;
+    const post = await this.postModel.create({
+      uuid: nanoid(),
+      source_id: ingestData.id,
+      source: ingestData.source,
+      uri: ingestData.uri,
+      content: ingestData.content,
+      createdAt: new Date(ingestData.createdAt),
+      relevance: ingestData.relevance,
+      lang: ingestData.lang,
+      hash: ingestData.hash,
+      author_id: ingestData.author.id,
+      author_name: ingestData.author.name,
+      author_handle: ingestData.author.handle,
+      author_avatar: ingestData.author.avatar,
+      media: ingestData.media,
+      linkPreview: ingestData.linkPreview,
+      original: ingestData.original,
+
+      /**
+       * Legacy fields for backward compatibility
+       */
+      author: ingestData.author.name,
+      posted_at: new Date(ingestData.createdAt),
+      received_at: new Date(),
+    } as any);
+
+    /**
+     * Associate categories with the post.
+     */
+    if (categoryModels.length > 0) {
+      await post.$set('categories_relation', categoryModels);
+    }
+
+    /**
+     * Notify about the new post.
+     */
+    try {
+      this.postsService.notifyNewIngest(post, categoryModels);
+    } catch (error) {
+      /**
+       * Log the error if notification fails.
+       */
+      console.error('Failed to send notification for new post:', error);
+    }
+
+    return post;
   }
 
   /**
@@ -143,14 +212,11 @@ export class IngestService {
       if (entry?.items?.length) {
         for (const ingest of entry.items) {
           try {
-            // Save ingested content to database - pass categories from ingest data if available
+            /**
+             * Save ingested content to database - pass categories from ingest data if available
+             */
             const categories = ingest.categories || [];
-            await this.postsService.saveIngest(ingest, categories);
-
-            // Send to Telegram
-            const isBreaking = (ingest.relevance ?? 0) >= 7;
-            const msg = this.formatIngestMessage(ingest, isBreaking);
-            await this.telegramService.sendMessage(msg);
+            await this.savePost(ingest, categories);
           } catch (error) {
             this.logger.error(`Error processing ingest ${ingest.id}:`, error);
           }
