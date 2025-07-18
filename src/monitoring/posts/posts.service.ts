@@ -51,11 +51,11 @@ export class PostsService {
   async getPostsByCategories(
     categorySlugs: string[],
   ): Promise<PostResponseDto[]> {
-    const threeHoursAgo = new Date(Date.now() - 60 * 60 * 1000 * 3);
+    const sixHoursAgo = new Date(Date.now() - 60 * 60 * 1000 * 6);
 
     const whereClause = {
       createdAt: {
-        [Op.gte]: threeHoursAgo,
+        [Op.gte]: sixHoursAgo,
       },
       ...(categorySlugs.length > 0 && {
         '$categories_relation.slug$': {
@@ -101,7 +101,7 @@ export class PostsService {
       author: post.author,
       source: post.source,
       uri: post.uri,
-      posted_at: post.posted_at,
+      posted_at: post.posted_at.toISOString(),
       relevance: post.relevance,
       lang: post.lang,
       hash: post.hash,
@@ -112,7 +112,7 @@ export class PostsService {
       media: post.media,
       linkPreview: post.linkPreview,
       original: post.original,
-      received_at: post.received_at,
+      received_at: post.received_at.toISOString(),
       categories:
         post.categories_relation?.map((category) => category.slug) || [],
     }));

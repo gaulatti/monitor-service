@@ -6,7 +6,7 @@
  * @property author - The name or identifier of the post's author.
  * @property source - The source platform or origin of the post.
  * @property uri - The URI linking to the post.
- * @property posted_at - The date and time when the post was published.
+ * @property posted_at - The ISO string timestamp when the post was published.
  * @property relevance - A numeric score indicating the relevance of the post.
  * @property lang - The language code of the post's content.
  * @property hash - A unique hash representing the post.
@@ -17,7 +17,7 @@
  * @property media - Array of URLs to media associated with the post.
  * @property linkPreview - URL or data for a link preview associated with the post.
  * @property original - (Optional) The original content or source, if applicable.
- * @property received_at - The date and time when the post was received by the system.
+ * @property received_at - The ISO string timestamp when the post was received by the system.
  * @property categories - Array of categories or tags associated with the post.
  */
 export interface PostResponseDto {
@@ -26,7 +26,7 @@ export interface PostResponseDto {
   author: string;
   source: string;
   uri: string;
-  posted_at: Date;
+  posted_at: string;
   relevance: number;
   lang: string;
   hash: string;
@@ -37,7 +37,7 @@ export interface PostResponseDto {
   media: string[];
   linkPreview: string;
   original?: string;
-  received_at: Date;
+  received_at: string;
   categories: string[];
 }
 
