@@ -5,3 +5,12 @@ export {
   GetPostsQueryDto as GetIngestsQueryDto,
   PostResponseDto,
 } from './posts.dto';
+export {
+  DeviceInfoDto,
+  PreferencesDto,
+  RegisterDeviceDto,
+  UpdateDeviceDto,
+  MarkPostReadDto,
+  DeviceRegistrationResponseDto,
+  AnalyticsEventDto,
+} from './device.dto';

@@ -4,3 +4,6 @@ export { Tagging } from './tagging.model';
 export { Event } from './event.model';
 export { Match } from './match.model';
 export { Draft } from './draft.model';
+export { Device } from './device.model';
+export { ReadPost } from './read-post.model';
+export { Analytics } from './analytics.model';

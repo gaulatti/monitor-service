@@ -17,6 +17,19 @@ import { Logger } from 'src/decorators/logger.decorator';
 import { JSONLogger } from 'src/utils/logger';
 import { CommonNotifications } from './common.notifications';
 import { INotificationsService } from './notifications.service.interface';
+import { DeviceService } from './push/device.service';
+import { ApnsService } from './push/apns.service';
+import { Device } from 'src/models';
+
+export interface PostNotificationData {
+  id: string;
+  title: string;
+  content: string;
+  relevance: number;
+  categories: string[];
+  url?: string;
+  publishedAt: string;
+}
 
 /**
  * Represents a client that receives notifications.
@@ -68,6 +81,18 @@ export class NotificationsService
   private disconnectSubject = new Subject<string>();
 
   /**
+   * The global subject that emits message events.
+   */
+  private globalSubject = new Subject<NotificationMessage>();
+
+  constructor(
+    private readonly deviceService: DeviceService,
+    private readonly apnsService: ApnsService,
+  ) {
+    super();
+  }
+
+  /**
    * Generates a unique client ID.
    *
    * @returns {string} A randomly generated string of 9 characters.
@@ -75,11 +100,6 @@ export class NotificationsService
   private generateClientId(): string {
     return Math.random().toString(36).substr(2, 9);
   }
-
-  /**
-   * The global subject that emits message events.
-   */
-  private globalSubject = new Subject<NotificationMessage>();
 
   /**
    * Establishes a connection and returns an observable that emits message events.
@@ -266,5 +286,165 @@ export class NotificationsService
     } else {
       this.logger.debug('Client not found for cleanup', clientId);
     }
+  }
+
+  /**
+   * Send push notifications for a new post to relevant devices
+   */
+  async sendPostNotification(post: PostNotificationData): Promise<void> {
+    try {
+      this.logger.log(
+        `Sending notifications for post: ${post.id} (relevance: ${post.relevance})`,
+      );
+
+      // Get devices that should receive this notification
+      const targetDevices = await this.deviceService.getNotificationTargets(
+        post.relevance,
+        post.categories,
+      );
+
+      if (targetDevices.length === 0) {
+        this.logger.log(`No devices found for post ${post.id}`);
+        return;
+      }
+
+      // Filter out devices that have already read this post
+      const unreadDevices = await this.deviceService.getUnreadDevices(
+        post.id,
+        targetDevices,
+      );
+
+      if (unreadDevices.length === 0) {
+        this.logger.log(`All devices have already read post ${post.id}`);
+        return;
+      }
+
+      // Send notifications in batches
+      await this.sendNotificationBatch(post, unreadDevices);
+
+      // Also broadcast to SSE clients
+      this.broadcast({
+        type: 'new_post',
+        post: {
+          id: post.id,
+          title: post.title,
+          relevance: post.relevance,
+          categories: post.categories,
+          publishedAt: post.publishedAt,
+        },
+      });
+
+      this.logger.log(
+        `Sent notifications for post ${post.id} to ${unreadDevices.length} devices`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error sending notifications for post ${post.id}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Send notifications to a batch of devices
+   */
+  private async sendNotificationBatch(
+    post: PostNotificationData,
+    devices: Device[],
+  ): Promise<void> {
+    const deviceTokens = devices.map((device) => device.deviceToken);
+
+    // Prepare notification payload using the expected interface
+    const notification = {
+      postId: post.id,
+      title: this.truncateTitle(post.title),
+      body: this.truncateContent(post.content),
+      relevance: post.relevance,
+      categories: post.categories,
+      url: post.url,
+      publishedAt: post.publishedAt,
+    };
+
+    // Send notifications using APNs service
+    await this.apnsService.sendNotificationToDevices(
+      deviceTokens,
+      notification,
+    );
+
+    this.logger.log(
+      `Notification batch sent: ${deviceTokens.length} devices for post ${post.id}`,
+    );
+  }
+
+  /**
+   * Send a test notification to a specific device
+   */
+  async sendTestNotification(deviceToken: string): Promise<void> {
+    const notification = {
+      postId: 'test',
+      title: 'Test Notification',
+      body: 'Your push notifications are working correctly!',
+      relevance: 1.0,
+      categories: ['test'],
+      publishedAt: new Date().toISOString(),
+    };
+
+    await this.apnsService.sendNotificationToDevices(
+      [deviceToken],
+      notification,
+    );
+
+    this.logger.log(`Test notification sent to device: ${deviceToken}`);
+  }
+
+  /**
+   * Send bulk notifications for multiple posts (used for catch-up scenarios)
+   */
+  async sendBulkNotifications(posts: PostNotificationData[]): Promise<void> {
+    this.logger.log(`Sending bulk notifications for ${posts.length} posts`);
+
+    for (const post of posts) {
+      try {
+        await this.sendPostNotification(post);
+        
+        // Add small delay between notifications to avoid rate limiting
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      } catch (error) {
+        this.logger.error(
+          `Error sending notification for post ${post.id}:`,
+          error,
+        );
+        // Continue with other posts even if one fails
+      }
+    }
+
+    this.logger.log(`Bulk notifications completed for ${posts.length} posts`);
+  }
+
+  /**
+   * Truncate title for push notification (iOS limit: ~178 characters total)
+   */
+  private truncateTitle(title: string): string {
+    const maxLength = 60;
+    return title.length > maxLength
+      ? `${title.substring(0, maxLength)}...`
+      : title;
+  }
+
+  /**
+   * Truncate content for push notification body
+   */
+  private truncateContent(content: string): string {
+    const maxLength = 100;
+    // Remove HTML tags and extra whitespace
+    const plainText = content
+      .replace(/<[^>]*>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    return plainText.length > maxLength
+      ? `${plainText.substring(0, maxLength)}...`
+      : plainText;
   }
 }

@@ -84,6 +84,11 @@ jobs:
             -e TELEGRAM_SESSION="${{ secrets.TELEGRAM_SESSION }}" \
             -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
             -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -e APNS_TEAM_ID="${{ secrets.APNS_TEAM_ID }}" \
+            -e APNS_KEY_ID="${{ secrets.APNS_KEY_ID }}" \
+            -e APNS_PRIVATE_KEY="${{ secrets.APNS_PRIVATE_KEY }}" \
+            -e APNS_BUNDLE_ID="${{ secrets.APNS_BUNDLE_ID }}" \
+            -e APNS_PRODUCTION="${{ vars.APNS_PRODUCTION }}" \
             -e CONTAINERIZED=true \
             --restart=always \
             --log-driver=awslogs \
