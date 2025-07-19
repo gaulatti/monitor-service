@@ -1,9 +1,12 @@
+'use strict';
+
+/** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  async up(queryInterface, Sequelize) {
     const transaction = await queryInterface.sequelize.transaction();
 
     try {
-      // Create devices table
+      // Create devices table with correct camelCase column names from the start
       await queryInterface.createTable('devices', {
         id: {
           type: Sequelize.INTEGER,
@@ -15,7 +18,6 @@ module.exports = {
           type: Sequelize.STRING(128),
           allowNull: false,
           unique: true,
-          field: 'device_token',
         },
         platform: {
           type: Sequelize.ENUM('ios', 'android'),
@@ -26,18 +28,15 @@ module.exports = {
           type: Sequelize.FLOAT,
           allowNull: false,
           defaultValue: 0.5,
-          field: 'relevance_threshold',
         },
         isActive: {
           type: Sequelize.BOOLEAN,
           allowNull: false,
           defaultValue: true,
-          field: 'is_active',
         },
         deviceId: {
           type: Sequelize.STRING(100),
           allowNull: true,
-          field: 'device_id',
         },
         model: {
           type: Sequelize.STRING(50),
@@ -46,27 +45,22 @@ module.exports = {
         systemVersion: {
           type: Sequelize.STRING(20),
           allowNull: true,
-          field: 'system_version',
         },
         appVersion: {
           type: Sequelize.STRING(20),
           allowNull: true,
-          field: 'app_version',
         },
         buildNumber: {
           type: Sequelize.STRING(20),
           allowNull: true,
-          field: 'build_number',
         },
         bundleId: {
           type: Sequelize.STRING(100),
           allowNull: true,
-          field: 'bundle_id',
         },
         timeZone: {
           type: Sequelize.STRING(50),
           allowNull: true,
-          field: 'time_zone',
         },
         language: {
           type: Sequelize.STRING(10),
@@ -81,35 +75,30 @@ module.exports = {
           type: Sequelize.BOOLEAN,
           allowNull: false,
           defaultValue: false,
-          field: 'quiet_hours',
         },
         registeredAt: {
           type: Sequelize.DATE,
           allowNull: false,
           defaultValue: Sequelize.NOW,
-          field: 'registered_at',
         },
         lastUpdated: {
           type: Sequelize.DATE,
           allowNull: false,
           defaultValue: Sequelize.NOW,
-          field: 'last_updated',
         },
         createdAt: {
           type: Sequelize.DATE,
           allowNull: false,
           defaultValue: Sequelize.NOW,
-          field: 'created_at',
         },
         updatedAt: {
           type: Sequelize.DATE,
           allowNull: false,
           defaultValue: Sequelize.NOW,
-          field: 'updated_at',
         },
       }, { transaction });
 
-      // Create read_posts table
+      // Create read_posts table with correct camelCase column names from the start
       await queryInterface.createTable('read_posts', {
         id: {
           type: Sequelize.INTEGER,
@@ -120,10 +109,9 @@ module.exports = {
         deviceToken: {
           type: Sequelize.STRING(128),
           allowNull: false,
-          field: 'device_token',
           references: {
             model: 'devices',
-            key: 'device_token',
+            key: 'deviceToken',
           },
           onUpdate: 'CASCADE',
           onDelete: 'CASCADE',
@@ -131,29 +119,25 @@ module.exports = {
         postId: {
           type: Sequelize.STRING(36),
           allowNull: false,
-          field: 'post_id',
         },
         readAt: {
           type: Sequelize.DATE,
           allowNull: false,
           defaultValue: Sequelize.NOW,
-          field: 'read_at',
         },
         createdAt: {
           type: Sequelize.DATE,
           allowNull: false,
           defaultValue: Sequelize.NOW,
-          field: 'created_at',
         },
         updatedAt: {
           type: Sequelize.DATE,
           allowNull: false,
           defaultValue: Sequelize.NOW,
-          field: 'updated_at',
         },
       }, { transaction });
 
-      // Create analytics table
+      // Create analytics table with correct camelCase column names and NO updatedAt
       await queryInterface.createTable('analytics', {
         id: {
           type: Sequelize.INTEGER,
@@ -164,10 +148,9 @@ module.exports = {
         deviceToken: {
           type: Sequelize.STRING(128),
           allowNull: false,
-          field: 'device_token',
           references: {
             model: 'devices',
-            key: 'device_token',
+            key: 'deviceToken',
           },
           onUpdate: 'CASCADE',
           onDelete: 'CASCADE',
@@ -194,69 +177,72 @@ module.exports = {
           type: Sequelize.DATE,
           allowNull: false,
           defaultValue: Sequelize.NOW,
-          field: 'created_at',
         },
-        updatedAt: {
-          type: Sequelize.DATE,
-          allowNull: false,
-          defaultValue: Sequelize.NOW,
-          field: 'updated_at',
-        },
+        // Note: No updatedAt column since Analytics model has updatedAt: false
       }, { transaction });
 
       // Add indexes for better performance
-      await queryInterface.addIndex('devices', ['device_token'], {
+      await queryInterface.addIndex('devices', ['deviceToken'], {
         unique: true,
         name: 'idx_devices_device_token',
         transaction,
       });
 
-      await queryInterface.addIndex('devices', ['is_active', 'relevance_threshold'], {
-        name: 'idx_devices_active_threshold',
+      await queryInterface.addIndex('read_posts', ['deviceToken'], {
+        name: 'idx_read_posts_device_token',
         transaction,
       });
 
-      await queryInterface.addIndex('read_posts', ['device_token', 'post_id'], {
-        unique: true,
-        name: 'idx_read_posts_device_post',
-        transaction,
-      });
-
-      await queryInterface.addIndex('read_posts', ['post_id'], {
+      await queryInterface.addIndex('read_posts', ['postId'], {
         name: 'idx_read_posts_post_id',
         transaction,
       });
 
-      await queryInterface.addIndex('analytics', ['device_token', 'timestamp'], {
-        name: 'idx_analytics_device_timestamp',
+      await queryInterface.addIndex('read_posts', ['deviceToken', 'postId'], {
+        unique: true,
+        name: 'idx_read_posts_device_post_unique',
         transaction,
       });
 
-      await queryInterface.addIndex('analytics', ['event', 'timestamp'], {
-        name: 'idx_analytics_event_timestamp',
+      await queryInterface.addIndex('analytics', ['deviceToken'], {
+        name: 'idx_analytics_device_token',
+        transaction,
+      });
+
+      await queryInterface.addIndex('analytics', ['event'], {
+        name: 'idx_analytics_event',
+        transaction,
+      });
+
+      await queryInterface.addIndex('analytics', ['timestamp'], {
+        name: 'idx_analytics_timestamp',
         transaction,
       });
 
       await transaction.commit();
+      console.log('Successfully created push notification tables with correct schema');
     } catch (error) {
       await transaction.rollback();
+      console.error('Error creating push notification tables:', error);
       throw error;
     }
   },
 
-  down: async (queryInterface, Sequelize) => {
+  async down(queryInterface, Sequelize) {
     const transaction = await queryInterface.sequelize.transaction();
 
     try {
-      // Drop tables in reverse order due to foreign key constraints
+      // Drop tables in reverse order (due to foreign key constraints)
       await queryInterface.dropTable('analytics', { transaction });
       await queryInterface.dropTable('read_posts', { transaction });
       await queryInterface.dropTable('devices', { transaction });
 
       await transaction.commit();
+      console.log('Successfully dropped push notification tables');
     } catch (error) {
       await transaction.rollback();
+      console.error('Error dropping push notification tables:', error);
       throw error;
     }
-  },
+  }
 };
