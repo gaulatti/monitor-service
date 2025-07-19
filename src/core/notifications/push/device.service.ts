@@ -327,6 +327,25 @@ export class DeviceService {
       categoryCount: postCategories.length,
     });
 
+    // First, let's see all active devices for debugging
+    const allActiveDevices = await this.deviceModel.findAll({
+      where: { isActive: true },
+      attributes: ['id', 'deviceToken', 'relevanceThreshold', 'categories'],
+    });
+
+    this.logger.log('All active devices for debugging', {
+      totalActiveDevices: allActiveDevices.length,
+      devices: allActiveDevices.map((d) => ({
+        id: d.id,
+        maskedToken: this.maskDeviceToken(d.deviceToken),
+        relevanceThreshold: d.relevanceThreshold,
+        categories: d.categories,
+        meetsRelevance: d.relevanceThreshold <= postRelevance,
+        hasEmptyCategories:
+          Array.isArray(d.categories) && d.categories.length === 0,
+      })),
+    });
+
     const devices = await this.deviceModel.findAll({
       where: {
         isActive: true,
