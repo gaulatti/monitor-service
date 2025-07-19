@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
 import * as crypto from 'crypto';
 import {
   RegisterDeviceDto,
@@ -354,7 +354,7 @@ export class DeviceService {
         },
         [Op.or]: [
           // Devices with empty categories array receive all notifications
-          { categories: [] },
+          literal('JSON_LENGTH(categories) = 0'),
           // Devices with matching categories
           { categories: { [Op.overlap]: postCategories } },
         ],
