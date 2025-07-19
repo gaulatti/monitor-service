@@ -333,9 +333,12 @@ export class DeviceService {
         relevanceThreshold: {
           [Op.lte]: postRelevance,
         },
-        categories: {
-          [Op.overlap]: postCategories,
-        },
+        [Op.or]: [
+          // Devices with empty categories array receive all notifications
+          { categories: [] },
+          // Devices with matching categories
+          { categories: { [Op.overlap]: postCategories } },
+        ],
       },
     });
 
