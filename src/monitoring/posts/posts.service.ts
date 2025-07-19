@@ -4,6 +4,8 @@ import { Op } from 'sequelize';
 import { NotificationsService } from 'src/core/notifications/notifications.service';
 import { NotificationPayload, PostResponseDto } from 'src/dto';
 import { Category, Post, Tagging } from 'src/models';
+import { JSONLogger } from 'src/utils/logger';
+import { Logger } from 'src/decorators/logger.decorator';
 
 /**
  * Service responsible for managing and retrieving posts, handling post-category relationships,
@@ -30,6 +32,9 @@ import { Category, Post, Tagging } from 'src/models';
  */
 @Injectable()
 export class PostsService {
+  @Logger(PostsService.name)
+  private readonly logger!: JSONLogger;
+
   constructor(
     @InjectModel(Post)
     private postModel: typeof Post,
@@ -119,12 +124,29 @@ export class PostsService {
   }
 
   /**
-   * Notifies subscribers about a newly ingested post by broadcasting a notification payload.
+   * Notifies subscribers about a newly ingested post by broadcasting a notification payload
+   * to SSE clients and sending push notifications to relevant devices based on their
+   * relevance thresholds.
    *
    * @param post - The post object containing details about the ingested post.
    * @param categories - An array of categories associated with the post.
    */
-  notifyNewIngest(post: Post, categories: Category[]): void {
+  async notifyNewIngest(post: Post, categories: Category[]): Promise<void> {
+    const startTime = Date.now();
+    
+    this.logger.log('Starting new post notification', {
+      postId: post.uuid,
+      postHash: post.hash,
+      source: post.source,
+      relevance: post.relevance,
+      language: post.lang,
+      categories: categories.map((cat) => cat.slug),
+      categoriesCount: categories.length,
+      contentLength: post.content.length,
+      author: post.author || 'Unknown',
+      postedAt: post.posted_at.toISOString(),
+    });
+
     const payload: NotificationPayload = {
       id: post.uuid,
       content: post.content,
@@ -146,7 +168,64 @@ export class PostsService {
       categories: categories.map((category) => category.slug),
     };
 
+    this.logger.log('Notification payload prepared', {
+      postId: post.uuid,
+      payloadSize: JSON.stringify(payload).length,
+      hasMedia: !!post.media,
+      hasLinkPreview: !!post.linkPreview,
+    });
+
+    // Broadcast to SSE clients (existing functionality)
     this.notificationsService.broadcast(payload);
+    
+    this.logger.log('SSE broadcast completed', {
+      postId: post.uuid,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Send push notifications to devices based on relevance threshold
+    try {
+      const postNotificationData = {
+        id: post.uuid,
+        title: this.extractTitle(post.content),
+        content: post.content,
+        relevance: post.relevance,
+        categories: categories.map((category) => category.slug),
+        url: post.uri,
+        publishedAt: post.posted_at.toISOString(),
+      };
+
+      this.logger.log('Sending push notifications', {
+        postId: post.uuid,
+        title: postNotificationData.title,
+        relevance: post.relevance,
+        categories: postNotificationData.categories,
+        titleLength: postNotificationData.title.length,
+      });
+
+      await this.notificationsService.sendPostNotification(
+        postNotificationData,
+      );
+
+      const duration = Date.now() - startTime;
+      this.logger.log('Post notification completed successfully', {
+        postId: post.uuid,
+        totalDurationMs: duration,
+        source: post.source,
+        relevance: post.relevance,
+        categoriesCount: categories.length,
+      });
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.logger.error('Failed to send push notifications for new post', '', {
+        postId: post.uuid,
+        source: post.source,
+        relevance: post.relevance,
+        error: error.message,
+        stack: error.stack,
+        durationMs: duration,
+      });
+    }
   }
 
   /**
@@ -178,5 +257,35 @@ export class PostsService {
      * Extract hashes from existing posts to return.
      */
     return existingPosts.map((post) => post.hash);
+  }
+
+  /**
+   * Extracts a title from post content for push notifications.
+   * Takes the first line or sentence of content, up to 60 characters.
+   *
+   * @param content - The post content to extract a title from.
+   * @returns A title string suitable for push notifications.
+   */
+  private extractTitle(content: string): string {
+    if (!content) {
+      return 'New Post';
+    }
+
+    // Remove HTML tags and extra whitespace
+    const cleanContent = content
+      .replace(/<[^>]*>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Take first sentence or line, limited to 60 characters
+    const firstSentence = cleanContent.split(/[.!?]\s+/)[0];
+    const firstLine = cleanContent.split('\n')[0];
+    
+    // Use the shorter of first sentence or first line
+    const title =
+      firstSentence.length <= firstLine.length ? firstSentence : firstLine;
+    
+    // Truncate to 60 characters for push notification limits
+    return title.length > 60 ? `${title.substring(0, 60)}...` : title;
   }
 }

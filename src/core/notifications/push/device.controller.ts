@@ -42,11 +42,27 @@ export class DeviceController {
   async registerDevice(
     @Body() deviceData: RegisterDeviceDto,
   ): Promise<DeviceRegistrationResponseDto> {
-    this.logger.log(
-      `Registering device: ${deviceData.deviceToken} (platform: ${deviceData.platform})`,
-    );
+    const maskedToken = this.maskDeviceToken(deviceData.deviceToken);
+    
+    this.logger.log('Device registration request received', {
+      maskedDeviceToken: maskedToken,
+      platform: deviceData.platform,
+      relevanceThreshold: deviceData.relevanceThreshold,
+      isActive: deviceData.isActive,
+      deviceModel: deviceData.deviceInfo.model,
+      appVersion: deviceData.deviceInfo.appVersion,
+      categoriesCount: deviceData.preferences.categories.length,
+      endpoint: 'POST /devices',
+    });
 
     const result = await this.deviceService.registerDevice(deviceData);
+
+    this.logger.log('Device registration response sent', {
+      maskedDeviceToken: maskedToken,
+      deviceId: result.id,
+      status: result.status,
+      endpoint: 'POST /devices',
+    });
 
     this.logger.log(
       `Device registration completed: ${deviceData.deviceToken} -> ${result.id}`,
@@ -66,11 +82,22 @@ export class DeviceController {
     @Param('deviceToken') deviceToken: string,
     @Body() updateData: UpdateDeviceDto,
   ): Promise<void> {
-    this.logger.log(`Updating device settings: ${deviceToken}`);
+    const maskedToken = this.maskDeviceToken(deviceToken);
+    
+    this.logger.log('Device update request received', {
+      maskedDeviceToken: maskedToken,
+      relevanceThreshold: updateData.relevanceThreshold,
+      isActive: updateData.isActive,
+      hasLastUpdated: !!updateData.lastUpdated,
+      endpoint: 'PUT /devices/:deviceToken',
+    });
 
     await this.deviceService.updateDevice(deviceToken, updateData);
 
-    this.logger.log(`Device settings updated: ${deviceToken}`);
+    this.logger.log('Device update completed', {
+      maskedDeviceToken: maskedToken,
+      endpoint: 'PUT /devices/:deviceToken',
+    });
   }
 
   /**
@@ -84,15 +111,22 @@ export class DeviceController {
     @Param('deviceToken') deviceToken: string,
     @Body() markReadData: MarkPostReadDto,
   ): Promise<void> {
-    this.logger.log(
-      `Marking post as read: ${markReadData.postId} for device ${deviceToken}`,
-    );
+    const maskedToken = this.maskDeviceToken(deviceToken);
+    
+    this.logger.log('Mark post as read request received', {
+      maskedDeviceToken: maskedToken,
+      postId: markReadData.postId,
+      readAt: markReadData.readAt,
+      endpoint: 'POST /devices/:deviceToken/read',
+    });
 
     await this.deviceService.markPostAsRead(deviceToken, markReadData);
 
-    this.logger.log(
-      `Post marked as read: ${markReadData.postId} for device ${deviceToken}`,
-    );
+    this.logger.log('Post marked as read successfully', {
+      maskedDeviceToken: maskedToken,
+      postId: markReadData.postId,
+      endpoint: 'POST /devices/:deviceToken/read',
+    });
   }
 
   /**
@@ -105,14 +139,35 @@ export class DeviceController {
   async recordAnalyticsEvent(
     @Body() eventData: AnalyticsEventDto,
   ): Promise<void> {
-    this.logger.log(
-      `Recording analytics event: ${eventData.event} for device ${eventData.deviceToken}`,
-    );
+    const maskedToken = this.maskDeviceToken(eventData.deviceToken);
+    
+    this.logger.log('Analytics event received', {
+      maskedDeviceToken: maskedToken,
+      event: eventData.event,
+      platform: eventData.platform,
+      postId: eventData.postId,
+      hasRelevance: eventData.relevance !== undefined,
+      hasCategories: !!eventData.categories,
+      hasCount: eventData.count !== undefined,
+      endpoint: 'POST /analytics',
+    });
 
     await this.deviceService.recordAnalyticsEvent(eventData);
 
-    this.logger.log(
-      `Analytics event recorded: ${eventData.event} for device ${eventData.deviceToken}`,
-    );
+    this.logger.log('Analytics event processed', {
+      maskedDeviceToken: maskedToken,
+      event: eventData.event,
+      endpoint: 'POST /analytics',
+    });
+  }
+
+  /**
+   * Mask device token for logging (show first 8 and last 4 characters)
+   */
+  private maskDeviceToken(token: string): string {
+    if (!token || token.length < 12) {
+      return '***masked***';
+    }
+    return `${token.substring(0, 8)}...${token.substring(token.length - 4)}`;
   }
 }

@@ -35,6 +35,10 @@ export class ApnsService {
    * Initialize the APNs provider with configuration
    */
   private initializeProvider(): void {
+    this.logger.log('Initializing APNs provider', {
+      timestamp: new Date().toISOString(),
+    });
+
     try {
       const keyId = this.configService.get<string>('APNS_KEY_ID');
       const teamId = this.configService.get<string>('APNS_TEAM_ID');
@@ -48,50 +52,89 @@ export class ApnsService {
         false,
       );
 
+      this.logger.log('APNs configuration loaded', {
+        hasKeyId: !!keyId,
+        hasTeamId: !!teamId,
+        hasBundleId: !!bundleId,
+        hasPrivateKey: !!privateKey,
+        hasPrivateKeyPath: !!privateKeyPath,
+        isProduction,
+        keyIdLength: keyId?.length || 0,
+        teamIdLength: teamId?.length || 0,
+        bundleId: bundleId || 'not set',
+      });
+
       if (!keyId || !teamId || !bundleId) {
-        this.logger.error(
-          'APNs configuration is missing required environment variables (APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID)',
-        );
+        this.logger.error('APNs configuration validation failed', '', {
+          missingFields: {
+            keyId: !keyId,
+            teamId: !teamId,
+            bundleId: !bundleId,
+          },
+          message:
+            'Missing required environment variables (APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID)',
+        });
         return;
       }
 
       if (!privateKey && !privateKeyPath) {
-        this.logger.error(
-          'APNs configuration requires either APNS_PRIVATE_KEY or APNS_PRIVATE_KEY_PATH',
-        );
+        this.logger.error('APNs private key configuration missing', '', {
+          hasPrivateKey: !!privateKey,
+          hasPrivateKeyPath: !!privateKeyPath,
+          message: 'Requires either APNS_PRIVATE_KEY or APNS_PRIVATE_KEY_PATH',
+        });
         return;
       }
 
       let keyData: string | Buffer | undefined;
 
       if (privateKey) {
+        this.logger.log('Processing private key from environment variable', {
+          keyLength: privateKey.length,
+          isPemFormat: privateKey.includes('-----BEGIN PRIVATE KEY-----'),
+        });
+
         // Handle private key from environment variable
         try {
           // Check if it's base64 encoded
           if (privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
             // Already in PEM format
             keyData = privateKey;
+            this.logger.log('Private key is in PEM format');
           } else {
             // Assume it's base64 encoded, decode it
             keyData = Buffer.from(privateKey, 'base64').toString('utf8');
+            this.logger.log('Private key decoded from base64');
           }
-          this.logger.log(
-            'Using private key from APNS_PRIVATE_KEY environment variable',
-          );
         } catch (error) {
-          this.logger.error('Failed to process APNS_PRIVATE_KEY:', error);
+          this.logger.error('Failed to process APNS_PRIVATE_KEY', '', {
+            error: error.message,
+            keyLength: privateKey.length,
+            stack: error.stack,
+          });
           return;
         }
       } else if (privateKeyPath) {
+        this.logger.log('Using private key from file path', {
+          path: privateKeyPath,
+        });
         // Handle private key from file path
         keyData = privateKeyPath;
-        this.logger.log('Using private key from file path:', privateKeyPath);
       }
 
       if (!keyData) {
         this.logger.error('No valid private key configuration found');
         return;
       }
+
+      this.logger.log('Creating APNs provider', {
+        keyId,
+        teamId,
+        bundleId,
+        isProduction,
+        keyDataType: typeof keyData,
+        keyDataLength: typeof keyData === 'string' ? keyData.length : 'N/A',
+      });
 
       const options: apn.ProviderOptions = {
         token: {
@@ -105,11 +148,17 @@ export class ApnsService {
       this.apnProvider = new apn.Provider(options);
       this.isInitialized = true;
 
-      this.logger.log(
-        `APNs provider initialized for ${isProduction ? 'production' : 'development'} environment`,
-      );
+      this.logger.log('APNs provider initialized successfully', {
+        isProduction,
+        bundleId,
+        timestamp: new Date().toISOString(),
+      });
     } catch (error) {
-      this.logger.error('Failed to initialize APNs provider:', error);
+      this.logger.error('Failed to initialize APNs provider', '', {
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      });
     }
   }
 
@@ -120,7 +169,24 @@ export class ApnsService {
     deviceToken: string,
     payload: PushNotificationPayload,
   ): Promise<{ success: boolean; error?: string }> {
+    const maskedToken = this.maskDeviceToken(deviceToken);
+    
+    this.logger.log('Sending push notification', {
+      maskedDeviceToken: maskedToken,
+      postId: payload.postId,
+      title: payload.title,
+      bodyLength: payload.body.length,
+      relevance: payload.relevance,
+      categories: payload.categories,
+      badge: payload.badge,
+      isInitialized: this.isInitialized,
+    });
+
     if (!this.isInitialized) {
+      this.logger.error('APNs provider not initialized', '', {
+        maskedDeviceToken: maskedToken,
+        postId: payload.postId,
+      });
       return { success: false, error: 'APNs provider not initialized' };
     }
 
@@ -147,28 +213,55 @@ export class ApnsService {
       // Set expiration (1 hour from now)
       notification.expiry = Math.floor(Date.now() / 1000) + 3600;
 
+      this.logger.log('Notification prepared, sending to APNs', {
+        maskedDeviceToken: maskedToken,
+        postId: payload.postId,
+        topic: notification.topic,
+        expiry: notification.expiry,
+        payloadSize: JSON.stringify(notification.payload).length,
+      });
+
       const result = await this.apnProvider.send(notification, deviceToken);
 
       if (result.sent.length > 0) {
-        this.logger.log(
-          `Push notification sent successfully to device: ${deviceToken}`,
-        );
+        this.logger.log('Push notification sent successfully', {
+          maskedDeviceToken: maskedToken,
+          postId: payload.postId,
+          sentCount: result.sent.length,
+          timestamp: new Date().toISOString(),
+        });
         return { success: true };
       } else if (result.failed.length > 0) {
         const failure = result.failed[0];
         const errorMessage = failure.error?.message || 'Unknown error';
-        this.logger.error(
-          `Push notification failed for device ${deviceToken}: ${errorMessage}`,
-        );
+        const errorCode = failure.status || 'Unknown status';
+        
+        this.logger.error('Push notification failed', '', {
+          maskedDeviceToken: maskedToken,
+          postId: payload.postId,
+          errorMessage,
+          errorCode,
+          failedCount: result.failed.length,
+          device: failure.device,
+        });
         return { success: false, error: errorMessage };
       }
 
+      this.logger.warn('No response from APNs', {
+        maskedDeviceToken: maskedToken,
+        postId: payload.postId,
+        sentCount: result.sent.length,
+        failedCount: result.failed.length,
+      });
+      
       return { success: false, error: 'No result from APNs' };
     } catch (error) {
-      this.logger.error(
-        `Error sending push notification to ${deviceToken}:`,
-        error,
-      );
+      this.logger.error('Error sending push notification', '', {
+        maskedDeviceToken: maskedToken,
+        postId: payload.postId,
+        error: error.message,
+        stack: error.stack,
+      });
       return { success: false, error: error.message };
     }
   }
@@ -180,6 +273,14 @@ export class ApnsService {
     deviceTokens: string[],
     payload: PushNotificationPayload,
   ): Promise<{ success: number; failed: number; errors: string[] }> {
+    this.logger.log('Sending bulk push notifications', {
+      deviceCount: deviceTokens.length,
+      postId: payload.postId,
+      title: payload.title,
+      relevance: payload.relevance,
+      categories: payload.categories,
+    });
+
     const results = {
       success: 0,
       failed: 0,
@@ -193,16 +294,23 @@ export class ApnsService {
       } else {
         results.failed++;
         if (result.error) {
-          results.errors.push(`${deviceToken}: ${result.error}`);
+          const maskedToken = this.maskDeviceToken(deviceToken);
+          results.errors.push(`${maskedToken}: ${result.error}`);
         }
       }
     });
 
     await Promise.all(promises);
 
-    this.logger.log(
-      `Bulk notification results: ${results.success} success, ${results.failed} failed`,
-    );
+    this.logger.log('Bulk notification completed', {
+      postId: payload.postId,
+      totalDevices: deviceTokens.length,
+      successCount: results.success,
+      failedCount: results.failed,
+      successRate:
+        ((results.success / deviceTokens.length) * 100).toFixed(2) + '%',
+      errorCount: results.errors.length,
+    });
 
     return results;
   }
@@ -224,5 +332,15 @@ export class ApnsService {
       this.apnProvider.shutdown();
       this.logger.log('APNs provider shutdown completed');
     }
+  }
+
+  /**
+   * Mask device token for logging (show first 8 and last 4 characters)
+   */
+  private maskDeviceToken(token: string): string {
+    if (!token || token.length < 12) {
+      return '***masked***';
+    }
+    return `${token.substring(0, 8)}...${token.substring(token.length - 4)}`;
   }
 }

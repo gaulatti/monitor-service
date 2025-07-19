@@ -181,7 +181,7 @@ export class IngestService {
      * Notify about the new post.
      */
     try {
-      this.postsService.notifyNewIngest(post, categoryModels);
+      await this.postsService.notifyNewIngest(post, categoryModels);
     } catch (error) {
       /**
        * Log the error if notification fails.

@@ -78,8 +78,9 @@ module.exports = {
           defaultValue: [],
         },
         quietHours: {
-          type: Sequelize.JSON,
-          allowNull: true,
+          type: Sequelize.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
           field: 'quiet_hours',
         },
         registeredAt: {

@@ -292,19 +292,39 @@ export class NotificationsService
    * Send push notifications for a new post to relevant devices
    */
   async sendPostNotification(post: PostNotificationData): Promise<void> {
-    try {
-      this.logger.log(
-        `Sending notifications for post: ${post.id} (relevance: ${post.relevance})`,
-      );
+    const startTime = Date.now();
+    
+    this.logger.log('Starting post notification process', {
+      postId: post.id,
+      title: post.title,
+      relevance: post.relevance,
+      categories: post.categories,
+      categoriesCount: post.categories.length,
+      publishedAt: post.publishedAt,
+      contentLength: post.content.length,
+    });
 
+    try {
       // Get devices that should receive this notification
       const targetDevices = await this.deviceService.getNotificationTargets(
         post.relevance,
         post.categories,
       );
 
+      this.logger.log('Target devices found', {
+        postId: post.id,
+        targetDeviceCount: targetDevices.length,
+        relevanceThreshold: post.relevance,
+        categories: post.categories,
+      });
+
       if (targetDevices.length === 0) {
-        this.logger.log(`No devices found for post ${post.id}`);
+        this.logger.log('No eligible devices found for post', {
+          postId: post.id,
+          relevance: post.relevance,
+          categories: post.categories,
+          reason: 'No devices match relevance threshold and categories',
+        });
         return;
       }
 
@@ -314,8 +334,19 @@ export class NotificationsService
         targetDevices,
       );
 
+      this.logger.log('Unread devices filtered', {
+        postId: post.id,
+        totalTargetDevices: targetDevices.length,
+        unreadDevicesCount: unreadDevices.length,
+        alreadyReadCount: targetDevices.length - unreadDevices.length,
+      });
+
       if (unreadDevices.length === 0) {
-        this.logger.log(`All devices have already read post ${post.id}`);
+        this.logger.log('All eligible devices have already read post', {
+          postId: post.id,
+          totalTargetDevices: targetDevices.length,
+          reason: 'All devices have already read this post',
+        });
         return;
       }
 
@@ -334,10 +365,26 @@ export class NotificationsService
         },
       });
 
-      this.logger.log(
-        `Sent notifications for post ${post.id} to ${unreadDevices.length} devices`,
-      );
+      const duration = Date.now() - startTime;
+      this.logger.log('Post notification process completed', {
+        postId: post.id,
+        targetDeviceCount: targetDevices.length,
+        unreadDevicesCount: unreadDevices.length,
+        notificationsSent: unreadDevices.length,
+        durationMs: duration,
+        avgTimePerDevice:
+          unreadDevices.length > 0
+            ? (duration / unreadDevices.length).toFixed(2) + 'ms'
+            : 'N/A',
+      });
     } catch (error) {
+      const duration = Date.now() - startTime;
+      this.logger.error('Error in post notification process', '', {
+        postId: post.id,
+        error: error.message,
+        stack: error.stack,
+        durationMs: duration,
+      });
       this.logger.error(
         `Error sending notifications for post ${post.id}:`,
         error,
@@ -354,6 +401,17 @@ export class NotificationsService
     devices: Device[],
   ): Promise<void> {
     const deviceTokens = devices.map((device) => device.deviceToken);
+    const maskedTokens = deviceTokens.map((token) =>
+      this.maskDeviceToken(token),
+    );
+
+    this.logger.log('Preparing notification batch', {
+      postId: post.id,
+      deviceCount: devices.length,
+      maskedTokensSample: maskedTokens.slice(0, 5), // Show first 5 for debugging
+      title: post.title,
+      contentLength: post.content.length,
+    });
 
     // Prepare notification payload using the expected interface
     const notification = {
@@ -366,15 +424,34 @@ export class NotificationsService
       publishedAt: post.publishedAt,
     };
 
+    this.logger.log('Notification payload prepared', {
+      postId: post.id,
+      title: notification.title,
+      bodyLength: notification.body.length,
+      relevance: notification.relevance,
+      categories: notification.categories,
+      hasUrl: !!notification.url,
+    });
+
     // Send notifications using APNs service
-    await this.apnsService.sendNotificationToDevices(
+    const batchStartTime = Date.now();
+    const result = await this.apnsService.sendNotificationToDevices(
       deviceTokens,
       notification,
     );
+    const batchDuration = Date.now() - batchStartTime;
 
-    this.logger.log(
-      `Notification batch sent: ${deviceTokens.length} devices for post ${post.id}`,
-    );
+    this.logger.log('Notification batch completed', {
+      postId: post.id,
+      deviceCount: deviceTokens.length,
+      successCount: result.success,
+      failedCount: result.failed,
+      errorCount: result.errors.length,
+      batchDurationMs: batchDuration,
+      successRate:
+        ((result.success / deviceTokens.length) * 100).toFixed(2) + '%',
+      errors: result.errors.slice(0, 3), // Show first 3 errors for debugging
+    });
   }
 
   /**
@@ -420,6 +497,16 @@ export class NotificationsService
     }
 
     this.logger.log(`Bulk notifications completed for ${posts.length} posts`);
+  }
+
+  /**
+   * Mask device token for logging (show first 8 and last 4 characters)
+   */
+  private maskDeviceToken(token: string): string {
+    if (!token || token.length < 12) {
+      return '***masked***';
+    }
+    return `${token.substring(0, 8)}...${token.substring(token.length - 4)}`;
   }
 
   /**

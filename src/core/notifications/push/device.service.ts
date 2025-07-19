@@ -41,9 +41,24 @@ export class DeviceService {
   async registerDevice(
     deviceData: RegisterDeviceDto,
   ): Promise<DeviceRegistrationResponseDto> {
+    const maskedToken = this.maskDeviceToken(deviceData.deviceToken);
+    
+    this.logger.log('Device registration started', {
+      maskedDeviceToken: maskedToken,
+      platform: deviceData.platform,
+      deviceId: deviceData.deviceInfo.deviceId,
+      model: deviceData.deviceInfo.model,
+      relevanceThreshold: deviceData.relevanceThreshold,
+      categoriesCount: deviceData.preferences.categories.length,
+    });
+
     try {
       // Validate device token format
       if (!this.apnsService.isValidDeviceToken(deviceData.deviceToken)) {
+        this.logger.error('Invalid device token format', '', {
+          maskedDeviceToken: maskedToken,
+          platform: deviceData.platform,
+        });
         throw new ConflictException('Invalid device token format');
       }
 
@@ -55,6 +70,16 @@ export class DeviceService {
       let device: Device;
 
       if (existingDevice) {
+        this.logger.log('Updating existing device', {
+          maskedDeviceToken: maskedToken,
+          deviceId: existingDevice.id,
+          oldRelevanceThreshold: existingDevice.relevanceThreshold,
+          newRelevanceThreshold: deviceData.relevanceThreshold,
+          oldCategories: existingDevice.categories,
+          newCategories: deviceData.preferences.categories,
+          appVersion: deviceData.deviceInfo.appVersion,
+        });
+
         // Update existing device
         await existingDevice.update({
           platform: deviceData.platform,
@@ -73,8 +98,20 @@ export class DeviceService {
           lastUpdated: new Date(deviceData.registeredAt),
         });
         device = existingDevice;
-        this.logger.log(`Updated existing device: ${deviceData.deviceToken}`);
+        
+        this.logger.log('Device updated successfully', {
+          maskedDeviceToken: maskedToken,
+          deviceId: device.id,
+          isActive: device.isActive,
+        });
       } else {
+        this.logger.log('Creating new device', {
+          maskedDeviceToken: maskedToken,
+          platform: deviceData.platform,
+          deviceModel: deviceData.deviceInfo.model,
+          appVersion: deviceData.deviceInfo.appVersion,
+        });
+
         // Create new device
         device = await this.deviceModel.create({
           deviceToken: deviceData.deviceToken,
@@ -94,15 +131,31 @@ export class DeviceService {
           registeredAt: new Date(deviceData.registeredAt),
           lastUpdated: new Date(deviceData.registeredAt),
         } as any);
-        this.logger.log(`Registered new device: ${deviceData.deviceToken}`);
+        
+        this.logger.log('New device created successfully', {
+          maskedDeviceToken: maskedToken,
+          deviceId: device.id,
+          isActive: device.isActive,
+        });
       }
+
+      this.logger.log('Device registration completed', {
+        maskedDeviceToken: maskedToken,
+        deviceId: device.id,
+        operation: existingDevice ? 'update' : 'create',
+      });
 
       return {
         id: device.id.toString(),
         status: 'registered',
       };
     } catch (error) {
-      this.logger.error('Error registering device:', error);
+      this.logger.error('Error registering device', '', {
+        maskedDeviceToken: maskedToken,
+        platform: deviceData.platform,
+        error: error.message,
+        stack: error.stack,
+      });
       throw error;
     }
   }
@@ -139,12 +192,24 @@ export class DeviceService {
     deviceToken: string,
     markReadData: MarkPostReadDto,
   ): Promise<void> {
+    const maskedToken = this.maskDeviceToken(deviceToken);
+    
+    this.logger.log('Marking post as read', {
+      maskedDeviceToken: maskedToken,
+      postId: markReadData.postId,
+      readAt: markReadData.readAt,
+    });
+
     // Verify device exists
     const device = await this.deviceModel.findOne({
       where: { deviceToken },
     });
 
     if (!device) {
+      this.logger.error('Device not found for mark as read', '', {
+        maskedDeviceToken: maskedToken,
+        postId: markReadData.postId,
+      });
       throw new NotFoundException('Device not found');
     }
 
@@ -163,9 +228,17 @@ export class DeviceService {
         readAt: new Date(markReadData.readAt),
       } as any);
 
-      this.logger.log(
-        `Marked post ${markReadData.postId} as read for device ${deviceToken}`,
-      );
+      this.logger.log('Post marked as read successfully', {
+        maskedDeviceToken: maskedToken,
+        postId: markReadData.postId,
+        deviceId: device.id,
+      });
+    } else {
+      this.logger.log('Post already marked as read', {
+        maskedDeviceToken: maskedToken,
+        postId: markReadData.postId,
+        deviceId: device.id,
+      });
     }
   }
 
@@ -173,12 +246,29 @@ export class DeviceService {
    * Record analytics event
    */
   async recordAnalyticsEvent(eventData: AnalyticsEventDto): Promise<void> {
+    const maskedToken = this.maskDeviceToken(eventData.deviceToken);
+    
+    this.logger.log('Recording analytics event', {
+      maskedDeviceToken: maskedToken,
+      event: eventData.event,
+      platform: eventData.platform,
+      postId: eventData.postId,
+      relevance: eventData.relevance,
+      categories: eventData.categories,
+      count: eventData.count,
+    });
+
     // Verify device exists
     const device = await this.deviceModel.findOne({
       where: { deviceToken: eventData.deviceToken },
     });
 
     if (!device) {
+      this.logger.error('Device not found for analytics event', '', {
+        maskedDeviceToken: maskedToken,
+        event: eventData.event,
+        platform: eventData.platform,
+      });
       throw new NotFoundException('Device not found');
     }
 
@@ -197,9 +287,14 @@ export class DeviceService {
       metadata,
     } as any);
 
-    this.logger.log(
-      `Recorded analytics event ${eventData.event} for device ${eventData.deviceToken}`,
-    );
+    this.logger.log('Analytics event recorded successfully', {
+      maskedDeviceToken: maskedToken,
+      deviceId: device.id,
+      event: eventData.event,
+      platform: eventData.platform,
+      hasPostId: !!eventData.postId,
+      metadataKeys: Object.keys(metadata),
+    });
   }
 
   /**
@@ -209,6 +304,12 @@ export class DeviceService {
     postRelevance: number,
     postCategories: string[],
   ): Promise<Device[]> {
+    this.logger.log('Finding notification targets', {
+      postRelevance,
+      postCategories,
+      categoryCount: postCategories.length,
+    });
+
     const devices = await this.deviceModel.findAll({
       where: {
         isActive: true,
@@ -221,9 +322,16 @@ export class DeviceService {
       },
     });
 
-    this.logger.log(
-      `Found ${devices.length} devices eligible for notifications (relevance: ${postRelevance}, categories: ${postCategories.join(', ')})`,
-    );
+    this.logger.log('Found notification targets', {
+      eligibleDeviceCount: devices.length,
+      postRelevance,
+      postCategories,
+      deviceStats: {
+        totalFound: devices.length,
+        platforms: this.getDevicePlatformStats(devices),
+        relevanceThresholds: this.getRelevanceThresholdStats(devices),
+      },
+    });
 
     return devices;
   }
@@ -316,5 +424,40 @@ export class DeviceService {
     );
 
     this.logger.log(`Deactivated ${updatedCount} stale devices`);
+  }
+
+  /**
+   * Mask device token for logging (show first 8 and last 4 characters)
+   */
+  private maskDeviceToken(token: string): string {
+    if (!token || token.length < 12) {
+      return '***masked***';
+    }
+    return `${token.substring(0, 8)}...${token.substring(token.length - 4)}`;
+  }
+
+  /**
+   * Get platform statistics for devices
+   */
+  private getDevicePlatformStats(devices: Device[]): Record<string, number> {
+    const stats: Record<string, number> = {};
+    devices.forEach((device) => {
+      stats[device.platform] = (stats[device.platform] || 0) + 1;
+    });
+    return stats;
+  }
+
+  /**
+   * Get relevance threshold statistics for devices
+   */
+  private getRelevanceThresholdStats(
+    devices: Device[],
+  ): Record<string, number> {
+    const stats: Record<string, number> = {};
+    devices.forEach((device) => {
+      const threshold = device.relevanceThreshold.toString();
+      stats[threshold] = (stats[threshold] || 0) + 1;
+    });
+    return stats;
   }
 }
