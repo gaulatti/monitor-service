@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
+import * as crypto from 'crypto';
 import {
   RegisterDeviceDto,
   UpdateDeviceDto,
@@ -42,7 +43,7 @@ export class DeviceService {
     deviceData: RegisterDeviceDto,
   ): Promise<DeviceRegistrationResponseDto> {
     const maskedToken = this.maskDeviceToken(deviceData.deviceToken);
-    
+
     this.logger.log('Device registration started', {
       maskedDeviceToken: maskedToken,
       platform: deviceData.platform,
@@ -98,7 +99,7 @@ export class DeviceService {
           lastUpdated: new Date(deviceData.registeredAt),
         });
         device = existingDevice;
-        
+
         this.logger.log('Device updated successfully', {
           maskedDeviceToken: maskedToken,
           deviceId: device.id,
@@ -131,7 +132,7 @@ export class DeviceService {
           registeredAt: new Date(deviceData.registeredAt),
           lastUpdated: new Date(deviceData.registeredAt),
         } as any);
-        
+
         this.logger.log('New device created successfully', {
           maskedDeviceToken: maskedToken,
           deviceId: device.id,
@@ -193,7 +194,7 @@ export class DeviceService {
     markReadData: MarkPostReadDto,
   ): Promise<void> {
     const maskedToken = this.maskDeviceToken(deviceToken);
-    
+
     this.logger.log('Marking post as read', {
       maskedDeviceToken: maskedToken,
       postId: markReadData.postId,
@@ -247,7 +248,7 @@ export class DeviceService {
    */
   async recordAnalyticsEvent(eventData: AnalyticsEventDto): Promise<void> {
     const maskedToken = this.maskDeviceToken(eventData.deviceToken);
-    
+
     this.logger.log('Recording analytics event', {
       maskedDeviceToken: maskedToken,
       event: eventData.event,
@@ -277,8 +278,9 @@ export class DeviceService {
       device = await this.autoRegisterDevice(
         eventData.deviceToken,
         eventData.platform,
+        eventData, // Pass the full event data for optional device info
       );
-      
+
       this.logger.log('Device auto-registered successfully', {
         maskedDeviceToken: maskedToken,
         deviceId: device.id,
@@ -356,7 +358,7 @@ export class DeviceService {
    */
   async getUnreadDevices(postId: string, devices: Device[]): Promise<Device[]> {
     const deviceTokens = devices.map((d) => d.deviceToken);
-    
+
     const readPosts = await this.readPostModel.findAll({
       where: {
         postId,
@@ -368,7 +370,7 @@ export class DeviceService {
     });
 
     const readDeviceTokens = new Set(readPosts.map((rp) => rp.deviceToken));
-    
+
     const unreadDevices = devices.filter(
       (device) => !readDeviceTokens.has(device.deviceToken),
     );
@@ -447,12 +449,18 @@ export class DeviceService {
   private async autoRegisterDevice(
     deviceToken: string,
     platform: 'ios' | 'android',
+    eventData?: AnalyticsEventDto,
   ): Promise<Device> {
     const maskedToken = this.maskDeviceToken(deviceToken);
-    
+
     this.logger.log('Auto-registering device with default settings', {
       maskedDeviceToken: maskedToken,
       platform,
+      hasDeviceInfo: !!(
+        eventData?.deviceId ||
+        eventData?.appVersion ||
+        eventData?.model
+      ),
     });
 
     // Validate device token format
@@ -468,12 +476,19 @@ export class DeviceService {
       throw new ConflictException('Invalid device token format');
     }
 
+    // Use provided deviceId if available, otherwise generate one from token
+    const deviceId =
+      eventData?.deviceId || this.generateDeviceIdFromToken(deviceToken);
+
     const device = await this.deviceModel.create({
       deviceToken,
       platform,
       relevanceThreshold: 0.5, // Default relevance threshold
       isActive: true,
-      categories: [], // Empty categories array by default
+      deviceId, // Use provided or generated deviceId
+      model: eventData?.model || null, // Use provided model if available
+      appVersion: eventData?.appVersion || null, // Use provided app version if available
+      categories: [], // Empty categories array by default - will receive all notifications
       quietHours: false,
       registeredAt: new Date(),
       lastUpdated: new Date(),
@@ -482,12 +497,31 @@ export class DeviceService {
     this.logger.log('Device auto-registration completed', {
       maskedDeviceToken: maskedToken,
       deviceId: device.id,
+      providedDeviceId: eventData?.deviceId,
+      generatedDeviceId: !eventData?.deviceId ? deviceId : undefined,
+      model: eventData?.model,
+      appVersion: eventData?.appVersion,
       platform,
       relevanceThreshold: device.relevanceThreshold,
       autoRegistered: true,
     });
 
     return device;
+  }
+
+  /**
+   * Generate a consistent deviceId from device token for auto-registration
+   * This ensures the same device gets the same deviceId if re-registered
+   */
+  private generateDeviceIdFromToken(deviceToken: string): string {
+    // Use a hash of the device token to generate a consistent deviceId
+    // This way, if the same device is auto-registered multiple times,
+    // it gets the same deviceId (useful for analytics correlation)
+    const hash = crypto.createHash('sha256').update(deviceToken).digest('hex');
+
+    // Take first 16 characters of hash and prefix with 'auto-'
+    // This gives us: auto-1a2b3c4d5e6f7g8h (24 chars total)
+    return `auto-${hash.substring(0, 16)}`;
   }
 
   /**

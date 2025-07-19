@@ -154,4 +154,17 @@ export class AnalyticsEventDto {
   @IsOptional()
   @IsNumber()
   count?: number;
+
+  // Optional device information for better auto-registration
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
+
+  @IsOptional()
+  @IsString()
+  appVersion?: string;
+
+  @IsOptional()
+  @IsString()
+  model?: string;
 }
