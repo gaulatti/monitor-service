@@ -9,6 +9,7 @@ import {
   ValidateNested,
   Min,
   Max,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -134,7 +135,8 @@ export class AnalyticsEventDto {
   timestamp: string;
 
   @IsString()
-  platform: string;
+  @IsIn(['ios', 'android'])
+  platform: 'ios' | 'android';
 
   @IsOptional()
   @IsString()

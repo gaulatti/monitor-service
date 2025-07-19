@@ -258,18 +258,33 @@ export class DeviceService {
       count: eventData.count,
     });
 
-    // Verify device exists
-    const device = await this.deviceModel.findOne({
+    // Verify device exists or auto-register
+    let device = await this.deviceModel.findOne({
       where: { deviceToken: eventData.deviceToken },
     });
 
     if (!device) {
-      this.logger.error('Device not found for analytics event', '', {
+      this.logger.warn(
+        'Device not found for analytics event, auto-registering with defaults',
+        {
+          maskedDeviceToken: maskedToken,
+          event: eventData.event,
+          platform: eventData.platform,
+        },
+      );
+
+      // Auto-register device with default settings
+      device = await this.autoRegisterDevice(
+        eventData.deviceToken,
+        eventData.platform,
+      );
+      
+      this.logger.log('Device auto-registered successfully', {
         maskedDeviceToken: maskedToken,
-        event: eventData.event,
+        deviceId: device.id,
         platform: eventData.platform,
+        event: eventData.event,
       });
-      throw new NotFoundException('Device not found');
     }
 
     const metadata: any = {};
@@ -424,6 +439,55 @@ export class DeviceService {
     );
 
     this.logger.log(`Deactivated ${updatedCount} stale devices`);
+  }
+
+  /**
+   * Auto-register a device with default settings when found during analytics
+   */
+  private async autoRegisterDevice(
+    deviceToken: string,
+    platform: 'ios' | 'android',
+  ): Promise<Device> {
+    const maskedToken = this.maskDeviceToken(deviceToken);
+    
+    this.logger.log('Auto-registering device with default settings', {
+      maskedDeviceToken: maskedToken,
+      platform,
+    });
+
+    // Validate device token format
+    if (!this.apnsService.isValidDeviceToken(deviceToken)) {
+      this.logger.error(
+        'Invalid device token format during auto-registration',
+        '',
+        {
+          maskedDeviceToken: maskedToken,
+          platform,
+        },
+      );
+      throw new ConflictException('Invalid device token format');
+    }
+
+    const device = await this.deviceModel.create({
+      deviceToken,
+      platform,
+      relevanceThreshold: 0.5, // Default relevance threshold
+      isActive: true,
+      categories: [], // Empty categories array by default
+      quietHours: false,
+      registeredAt: new Date(),
+      lastUpdated: new Date(),
+    } as any);
+
+    this.logger.log('Device auto-registration completed', {
+      maskedDeviceToken: maskedToken,
+      deviceId: device.id,
+      platform,
+      relevanceThreshold: device.relevanceThreshold,
+      autoRegistered: true,
+    });
+
+    return device;
   }
 
   /**
