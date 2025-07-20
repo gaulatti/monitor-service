@@ -243,7 +243,3 @@ export class IngestService {
     }
   }
 }
-      }
-    }
-  }
-}
