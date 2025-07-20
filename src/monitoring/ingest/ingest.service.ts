@@ -43,7 +43,13 @@ export class IngestService {
   /**
    * TODO: Define this in the UI.
    */
-  private readonly seeds = new Set(['chile', 'new york', 'weather', 'zohran']);
+  private readonly seeds = new Set([
+    'chile',
+    'new york',
+    'weather',
+    'zohran',
+    'earthquake',
+  ]);
 
   /**
    * Queue of topics to be processed.
@@ -99,7 +105,12 @@ export class IngestService {
     /**
      * Log the current state of the topics queue.
      */
-    const topKeywords = sortedEntries.slice(0, 5).map(([keyword]) => keyword);
+    const topKeywords = Array.from(
+      new Set([
+        ...sortedEntries.slice(0, 5).map(([keyword]) => keyword),
+        ...this.seeds,
+      ]),
+    );
 
     /**
      * Trigger n8n with the top keywords.
