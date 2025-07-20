@@ -220,18 +220,29 @@ export class IngestService {
         });
       }
 
-      if (entry?.items?.length) {
+      // Handle direct post objects (your posts array)
+      if (entry?.id && entry?.source && entry?.content) {
+        try {
+          const categories = entry.categories || [];
+          await this.savePost(entry, categories);
+        } catch (error) {
+          this.logger.error(`Error processing ingest ${entry.id}:`, error);
+        }
+      }
+      // Handle wrapped posts in items array (legacy format)
+      else if (entry?.items?.length) {
         for (const ingest of entry.items) {
           try {
-            /**
-             * Save ingested content to database - pass categories from ingest data if available
-             */
             const categories = ingest.categories || [];
             await this.savePost(ingest, categories);
           } catch (error) {
             this.logger.error(`Error processing ingest ${ingest.id}:`, error);
           }
         }
+      }
+    }
+  }
+}
       }
     }
   }
