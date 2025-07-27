@@ -56,11 +56,11 @@ export class PostsService {
   async getPostsByCategories(
     categorySlugs: string[],
   ): Promise<PostResponseDto[]> {
-    const sixHoursAgo = new Date(Date.now() - 60 * 60 * 1000 * 6);
+    const halfDayAgo = new Date(Date.now() - 60 * 60 * 1000 * 12);
 
     const whereClause = {
       createdAt: {
-        [Op.gte]: sixHoursAgo,
+        [Op.gte]: halfDayAgo,
       },
       ...(categorySlugs.length > 0 && {
         '$categories_relation.slug$': {
@@ -177,7 +177,7 @@ export class PostsService {
 
     // Broadcast to SSE clients (existing functionality)
     this.notificationsService.broadcast(payload);
-    
+
     this.logger.log('SSE broadcast completed', {
       postId: post.uuid,
       timestamp: new Date().toISOString(),
