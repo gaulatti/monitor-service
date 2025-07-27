@@ -56,7 +56,7 @@ export class PostsService {
   async getPostsByCategories(
     categorySlugs: string[],
   ): Promise<PostResponseDto[]> {
-    const halfDayAgo = new Date(Date.now() - 60 * 60 * 1000 * 12);
+    const halfDayAgo = new Date(Date.now() - 60 * 60 * 1000 * 6);
 
     const whereClause = {
       createdAt: {
