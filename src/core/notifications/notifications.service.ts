@@ -14,12 +14,12 @@ import {
   startWith,
 } from 'rxjs';
 import { Logger } from 'src/decorators/logger.decorator';
+import { Device } from 'src/models';
 import { JSONLogger } from 'src/utils/logger';
 import { CommonNotifications } from './common.notifications';
 import { INotificationsService } from './notifications.service.interface';
-import { DeviceService } from './push/device.service';
 import { ApnsService } from './push/apns.service';
-import { Device } from 'src/models';
+import { DeviceService } from './push/device.service';
 
 export interface PostNotificationData {
   id: string;
@@ -232,7 +232,6 @@ export class NotificationsService
    * @param message - The message object to be broadcasted. It will be serialized to a JSON string.
    */
   broadcast(message: object) {
-    const clientCount = Object.keys(this.clients).length;
     const notificationMessage = {
       message: {
         data: JSON.stringify({
@@ -241,8 +240,6 @@ export class NotificationsService
         }),
       },
     };
-    this.logger.log(`Broadcasting message to ${clientCount} clients`);
-    this.logger.debug('Broadcast message:', notificationMessage);
     this.globalSubject.next(notificationMessage);
   }
 
@@ -293,16 +290,6 @@ export class NotificationsService
    */
   async sendPostNotification(post: PostNotificationData): Promise<void> {
     const startTime = Date.now();
-    
-    this.logger.log('Starting post notification process', {
-      postId: post.id,
-      title: post.title,
-      relevance: post.relevance,
-      categories: post.categories,
-      categoriesCount: post.categories.length,
-      publishedAt: post.publishedAt,
-      contentLength: post.content.length,
-    });
 
     try {
       // Get devices that should receive this notification
@@ -311,20 +298,7 @@ export class NotificationsService
         post.categories,
       );
 
-      this.logger.log('Target devices found', {
-        postId: post.id,
-        targetDeviceCount: targetDevices.length,
-        relevanceThreshold: post.relevance,
-        categories: post.categories,
-      });
-
       if (targetDevices.length === 0) {
-        this.logger.log('No eligible devices found for post', {
-          postId: post.id,
-          relevance: post.relevance,
-          categories: post.categories,
-          reason: 'No devices match relevance threshold and categories',
-        });
         return;
       }
 
@@ -334,24 +308,12 @@ export class NotificationsService
         targetDevices,
       );
 
-      this.logger.log('Unread devices filtered', {
-        postId: post.id,
-        totalTargetDevices: targetDevices.length,
-        unreadDevicesCount: unreadDevices.length,
-        alreadyReadCount: targetDevices.length - unreadDevices.length,
-      });
-
       if (unreadDevices.length === 0) {
-        this.logger.log('All eligible devices have already read post', {
-          postId: post.id,
-          totalTargetDevices: targetDevices.length,
-          reason: 'All devices have already read this post',
-        });
         return;
       }
 
       // Send notifications in batches
-      await this.sendNotificationBatch(post, unreadDevices);
+      void this.sendNotificationBatch(post, unreadDevices);
 
       // Also broadcast to SSE clients
       this.broadcast({
@@ -363,19 +325,6 @@ export class NotificationsService
           categories: post.categories,
           publishedAt: post.publishedAt,
         },
-      });
-
-      const duration = Date.now() - startTime;
-      this.logger.log('Post notification process completed', {
-        postId: post.id,
-        targetDeviceCount: targetDevices.length,
-        unreadDevicesCount: unreadDevices.length,
-        notificationsSent: unreadDevices.length,
-        durationMs: duration,
-        avgTimePerDevice:
-          unreadDevices.length > 0
-            ? (duration / unreadDevices.length).toFixed(2) + 'ms'
-            : 'N/A',
       });
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -396,22 +345,8 @@ export class NotificationsService
   /**
    * Send notifications to a batch of devices
    */
-  private async sendNotificationBatch(
-    post: PostNotificationData,
-    devices: Device[],
-  ): Promise<void> {
+  private sendNotificationBatch(post: PostNotificationData, devices: Device[]) {
     const deviceTokens = devices.map((device) => device.deviceToken);
-    const maskedTokens = deviceTokens.map((token) =>
-      this.maskDeviceToken(token),
-    );
-
-    this.logger.log('Preparing notification batch', {
-      postId: post.id,
-      deviceCount: devices.length,
-      maskedTokensSample: maskedTokens.slice(0, 5), // Show first 5 for debugging
-      title: post.title,
-      contentLength: post.content.length,
-    });
 
     // Prepare notification payload using the expected interface
     const notification = {
@@ -424,34 +359,8 @@ export class NotificationsService
       publishedAt: post.publishedAt,
     };
 
-    this.logger.log('Notification payload prepared', {
-      postId: post.id,
-      title: notification.title,
-      bodyLength: notification.body.length,
-      relevance: notification.relevance,
-      categories: notification.categories,
-      hasUrl: !!notification.url,
-    });
-
     // Send notifications using APNs service
-    const batchStartTime = Date.now();
-    const result = await this.apnsService.sendNotificationToDevices(
-      deviceTokens,
-      notification,
-    );
-    const batchDuration = Date.now() - batchStartTime;
-
-    this.logger.log('Notification batch completed', {
-      postId: post.id,
-      deviceCount: deviceTokens.length,
-      successCount: result.success,
-      failedCount: result.failed,
-      errorCount: result.errors.length,
-      batchDurationMs: batchDuration,
-      successRate:
-        ((result.success / deviceTokens.length) * 100).toFixed(2) + '%',
-      errors: result.errors.slice(0, 3), // Show first 3 errors for debugging
-    });
+    void this.apnsService.sendNotificationToDevices(deviceTokens, notification);
   }
 
   /**
@@ -484,7 +393,7 @@ export class NotificationsService
     for (const post of posts) {
       try {
         await this.sendPostNotification(post);
-        
+
         // Add small delay between notifications to avoid rate limiting
         await new Promise((resolve) => setTimeout(resolve, 100));
       } catch (error) {
@@ -492,21 +401,8 @@ export class NotificationsService
           `Error sending notification for post ${post.id}:`,
           error,
         );
-        // Continue with other posts even if one fails
       }
     }
-
-    this.logger.log(`Bulk notifications completed for ${posts.length} posts`);
-  }
-
-  /**
-   * Mask device token for logging (show first 8 and last 4 characters)
-   */
-  private maskDeviceToken(token: string): string {
-    if (!token || token.length < 12) {
-      return '***masked***';
-    }
-    return `${token.substring(0, 8)}...${token.substring(token.length - 4)}`;
   }
 
   /**
@@ -529,7 +425,7 @@ export class NotificationsService
       .replace(/<[^>]*>/g, '')
       .replace(/\s+/g, ' ')
       .trim();
-    
+
     return plainText.length > maxLength
       ? `${plainText.substring(0, maxLength)}...`
       : plainText;
