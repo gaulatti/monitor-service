@@ -8,6 +8,7 @@ import { Category, Post } from 'src/models';
 import { JSONLogger } from 'src/utils/logger';
 import { nanoid } from 'src/utils/nanoid';
 import { PostsService } from '../posts/posts.service';
+import { Cron } from '@nestjs/schedule';
 
 /**
  * Service responsible for ingesting, processing, and monitoring content within the application.
@@ -134,12 +135,14 @@ export class IngestService {
         vector: embedding,
         limit,
         with_payload: true,
+        with_vector: true, // Include the actual vector embeddings
       });
 
       return searchResult.map((result) => ({
         postId: result.payload?.postId,
         score: result.score,
         content: result.payload?.content,
+        embeddings: result.vector, // Include the embeddings for second pass similarity
       }));
     } catch (error) {
       this.logger.error('Failed to search similar posts:', error);
@@ -194,10 +197,9 @@ export class IngestService {
    *
    * @throws Logs an error if the monitoring process encounters an issue.
    */
-  // @Cron(`* * * * *`)
+  @Cron(`* * * * *`)
   monitorIngest() {
     try {
-
       void this.trigger();
     } catch (error) {
       this.logger.error('Monitoring content ingestion failed:', error);
@@ -272,23 +274,35 @@ export class IngestService {
     // Use real embeddings from the ingest data
     const embedding = ingestData.embeddings || [];
     console.log('DEBUG: embedding length:', embedding.length);
-    console.log('DEBUG: ingestData.embeddings exists:', !!ingestData.embeddings);
+    console.log(
+      'DEBUG: ingestData.embeddings exists:',
+      !!ingestData.embeddings,
+    );
     console.log('DEBUG: first few embedding values:', embedding.slice(0, 3));
 
-    // Check for similar existing posts only if embeddings are available
+    // Find similar posts and check for duplicates if embeddings are available
+    let similarPosts: any[] = [];
     let duplicates: any[] = [];
+
     if (embedding.length > 0) {
-      const similarPosts = await this.findSimilarPosts(embedding, 3);
+      // Find up to 10 similar posts with any similarity score
+      similarPosts = await this.findSimilarPosts(embedding, 10);
+
+      // Check for potential duplicates (high similarity)
       duplicates = similarPosts.filter(
         (similar) => similar.score >= this.similarityThreshold,
       );
 
       if (duplicates.length > 0) {
         this.logger.log(
-          `Found ${duplicates.length} similar posts for content: ${ingestData.content.substring(0, 100)}...`,
+          `Found ${duplicates.length} potential duplicates - similarity scores: ${duplicates.map((d) => d.score.toFixed(3)).join(', ')}`,
         );
-        // Optionally skip saving or merge with existing post
-        // For now, we'll log and continue with saving
+      }
+
+      if (similarPosts.length > 0) {
+        this.logger.log(
+          `Found ${similarPosts.length} similar posts - avg similarity: ${(similarPosts.reduce((sum, s) => sum + s.score, 0) / similarPosts.length).toFixed(3)}`,
+        );
       }
     }
 
@@ -363,22 +377,36 @@ export class IngestService {
 
     const finalPost = completePost || post;
 
-    // Attach embeddings to the final post object for the response (not stored in MySQL)
+    // Convert Sequelize model to plain object to allow dynamic properties
+    const postData = finalPost.toJSON();
+
+    // Attach embeddings and similar posts to the plain object
     console.log('DEBUG: About to attach embeddings, length:', embedding.length);
     if (embedding.length > 0) {
-      (finalPost as any).embedding = embedding;
-      console.log('DEBUG: Embeddings attached to finalPost');
+      (postData as any).embeddings = embedding;
+      console.log('DEBUG: Embeddings attached to postData');
       console.log(
-        'DEBUG: finalPost.embeddings length:',
-        (finalPost as any).embedding?.length,
+        'DEBUG: postData.embeddings length:',
+        (postData as any).embeddings?.length,
       );
     } else {
       console.log('DEBUG: No embeddings to attach (length is 0)');
     }
 
-    console.log(JSON.stringify(finalPost, null, 2));
+    // Attach similar posts to the response
+    if (similarPosts.length > 0) {
+      (postData as any).similarPosts = similarPosts.map((similar) => ({
+        postId: similar.postId,
+        score: similar.score,
+        content: similar.content, // Full content without truncation
+        embeddings: similar.embeddings, // Include embeddings for second pass similarity
+      }));
+      console.log('DEBUG: Similar posts attached:', similarPosts.length);
+    }
 
-    return finalPost;
+    console.log(JSON.stringify(postData, null, 2));
+
+    return postData as any;
   }
 
   /**
