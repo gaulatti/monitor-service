@@ -66,6 +66,32 @@ export class PostsController {
     }
   }
 
+  @Get('vectors')
+  @Public()
+  async listVectors(@Query('limit') limit?: number): Promise<{
+    vectors: Array<{
+      id: number;
+      postId?: string;
+      mysqlId?: number;
+      content?: string;
+      source?: string;
+      createdAt?: string;
+      hash?: string;
+      vector?: number[];
+    }>;
+    total: number;
+    collectionInfo: {
+      status: string;
+      pointsCount: number;
+      vectorSize: number;
+      distance: string;
+    };
+  }> {
+    return await this.ingestService.listVectors(
+      limit && limit > 0 && limit <= 100 ? limit : 20,
+    );
+  }
+
   @Post('dedup')
   @Public()
   async dedup(@Body() body: DedupRequestDto) {

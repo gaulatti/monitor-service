@@ -1,8 +1,7 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import axios from 'axios';
 import { QdrantClient } from '@qdrant/js-client-rest';
+import axios from 'axios';
 import { Logger } from 'src/decorators/logger.decorator';
 import { IngestDto } from 'src/dto';
 import { Category, Post } from 'src/models';
@@ -80,31 +79,14 @@ export class IngestService {
   }
 
   /**
-   * Checks if Qdrant is healthy and accessible.
-   */
-  private async isQdrantHealthy(): Promise<boolean> {
-    try {
-      await this.qdrantClient.getCollections();
-      return true;
-    } catch (error) {
-      this.logger.error('Qdrant health check failed:', error);
-      return false;
-    }
-  }
-
-  /**
    * Initializes the Qdrant collection for storing post vectors.
-   * This leverages the QdrantClient provided by DalModule.
    */
   private async initializeQdrantCollection(): Promise<void> {
     try {
-      const isHealthy = await this.isQdrantHealthy();
-      if (!isHealthy) {
-        this.logger.warn(
-          'Qdrant is not accessible, skipping collection initialization',
-        );
-        return;
-      }
+      this.logger.log('Initializing Qdrant collection', {
+        collectionName: this.collectionName,
+        vectorSize: 384,
+      });
 
       const collections = await this.qdrantClient.getCollections();
       const collectionExists = collections.collections.some(
@@ -112,6 +94,12 @@ export class IngestService {
       );
 
       if (!collectionExists) {
+        this.logger.log('Creating new Qdrant collection', {
+          collectionName: this.collectionName,
+          vectorSize: 384,
+          distance: 'Cosine',
+        });
+
         await this.qdrantClient.createCollection(this.collectionName, {
           vectors: {
             size: 384, // Updated to match the actual embedding dimension from real data
@@ -119,9 +107,17 @@ export class IngestService {
           },
         });
         this.logger.log(`Created Qdrant collection: ${this.collectionName}`);
+      } else {
+        this.logger.log('Qdrant collection already exists', {
+          collectionName: this.collectionName,
+        });
       }
     } catch (error) {
-      this.logger.error('Failed to initialize Qdrant collection:', error);
+      this.logger.error('Failed to initialize Qdrant collection', '', {
+        collectionName: this.collectionName,
+        error: error.message,
+        stack: error.stack,
+      });
     }
   }
 
@@ -134,14 +130,6 @@ export class IngestService {
     limit: number = 5,
   ): Promise<any[]> {
     try {
-      const isHealthy = await this.isQdrantHealthy();
-      if (!isHealthy) {
-        this.logger.warn(
-          'Qdrant is not accessible, skipping similarity search',
-        );
-        return [];
-      }
-
       const searchResult = await this.qdrantClient.search(this.collectionName, {
         vector: embedding,
         limit,
@@ -161,36 +149,47 @@ export class IngestService {
 
   /**
    * Stores post vector in Qdrant.
-   * This method leverages the QdrantClient from DalModule.
    */
   private async storePostVector(
     post: Post,
     embedding: number[],
   ): Promise<void> {
-    try {
-      const isHealthy = await this.isQdrantHealthy();
-      if (!isHealthy) {
-        this.logger.warn('Qdrant is not accessible, skipping vector storage');
-        return;
-      }
+    if (embedding.length !== 384) {
+      this.logger.warn('Invalid embedding dimensions', {
+        postId: post.uuid,
+        expectedDimensions: 384,
+        actualDimensions: embedding.length,
+      });
+      return;
+    }
 
+    const pointData = {
+      id: post.id, // Use MySQL auto-increment ID as Qdrant point ID
+      vector: embedding,
+      payload: {
+        postId: post.uuid,
+        mysqlId: post.id,
+        content: post.content?.substring(0, 500) || '',
+        source: post.source || '',
+        createdAt: post.createdAt?.toISOString() || new Date().toISOString(),
+        hash: post.hash || '',
+      },
+    };
+
+    try {
       await this.qdrantClient.upsert(this.collectionName, {
-        points: [
-          {
-            id: post.uuid,
-            vector: embedding,
-            payload: {
-              postId: post.uuid,
-              content: post.content?.substring(0, 500), // Store truncated content
-              source: post.source,
-              createdAt: post.createdAt?.toISOString(),
-              hash: post.hash,
-            },
-          },
-        ],
+        points: [pointData],
+      });
+      
+      this.logger.log('Successfully stored post vector in Qdrant', {
+        postId: post.uuid,
+        pointId: post.id,
       });
     } catch (error) {
-      this.logger.error('Failed to store post vector:', error);
+      this.logger.error('Failed to store post vector in Qdrant', '', {
+        postId: post.uuid,
+        error: error.message,
+      });
     }
   }
 
@@ -200,7 +199,7 @@ export class IngestService {
    *
    * @throws Logs an error if the monitoring process encounters an issue.
    */
-  @Cron(`* * * * *`)
+  // @Cron(`* * * * *`)
   monitorIngest() {
     try {
       console.log('Monitoring content ingestion');
@@ -357,7 +356,7 @@ export class IngestService {
       /**
        * Log the error if notification fails.
        */
-      console.error('Failed to send notification for new post:', error);
+      this.logger.error('Failed to send notification for new post:', error);
     }
 
     return post;
@@ -376,6 +375,84 @@ export class IngestService {
       return [];
     }
     return this.findSimilarPosts(queryEmbedding, limit);
+  }
+
+  /**
+   * Lists all vectors stored in the Qdrant collection.
+   * Returns vector metadata including point IDs and payload information.
+   */
+  async listVectors(limit: number = 20): Promise<{
+    vectors: Array<{
+      id: number;
+      postId?: string;
+      mysqlId?: number;
+      content?: string;
+      source?: string;
+      createdAt?: string;
+      hash?: string;
+      vector?: number[];
+    }>;
+    total: number;
+    collectionInfo: {
+      status: string;
+      pointsCount: number;
+      vectorSize: number;
+      distance: string;
+    };
+  }> {
+    const collectionInfo = await this.qdrantClient.getCollection(
+      this.collectionName,
+    );
+
+    const scrollResult = await this.qdrantClient.scroll(this.collectionName, {
+      limit,
+      with_payload: true,
+      with_vector: true,
+    });
+
+    const vectors = scrollResult.points.map((point) => ({
+      id: point.id as number,
+      postId: point.payload?.postId as string,
+      mysqlId: point.payload?.mysqlId as number,
+      content:
+        typeof point.payload?.content === 'string'
+          ? point.payload.content.substring(0, 100) + '...'
+          : undefined,
+      source: point.payload?.source as string,
+      createdAt: point.payload?.createdAt as string,
+      hash: point.payload?.hash as string,
+      vector: point.vector as number[],
+    }));
+
+    const pointsCount = collectionInfo.points_count || 0;
+
+    // Extract vector configuration
+    let vectorSize = 384;
+    let distance = 'Cosine';
+
+    const vectorConfig = collectionInfo.config?.params?.vectors;
+    if (vectorConfig && typeof vectorConfig === 'object') {
+      if ('size' in vectorConfig && typeof vectorConfig.size === 'number') {
+        vectorSize = vectorConfig.size;
+      }
+      if (
+        'distance' in vectorConfig &&
+        typeof vectorConfig.distance === 'string'
+      ) {
+        distance = vectorConfig.distance;
+      }
+    }
+
+    return {
+      vectors,
+      total: pointsCount,
+      collectionInfo: {
+        status: collectionInfo.status,
+        pointsCount,
+        vectorSize,
+        distance,
+      },
+    };
   }
 
   /**
@@ -431,7 +508,34 @@ export class IngestService {
       // Handle direct post objects (your posts array)
       if (entry?.id && entry?.source && entry?.content) {
         try {
-          const categories = entry.categories || [];
+          // Extract categories from multiple sources
+          let categories = entry.categories || [];
+
+          // If no categories in the root, try to extract from classification results
+          if (
+            categories.length === 0 &&
+            entry._vote?.content_classification?.full_result?.labels
+          ) {
+            // Use top 3 categories from classification results with scores above threshold
+            const classificationResults =
+              entry._vote.content_classification.full_result;
+            const threshold = 0.1; // Minimum score threshold
+
+            categories = classificationResults.labels
+              .slice(0, 5) // Take top 5 labels
+              .filter(
+                (_, index) => classificationResults.scores[index] >= threshold,
+              )
+              .slice(0, 3); // Limit to top 3 categories
+
+            this.logger.log(`Extracted categories from classification`, {
+              postId: entry.id,
+              originalCategories: entry.categories,
+              extractedCategories: categories,
+              classificationScores: classificationResults.scores.slice(0, 3),
+            });
+          }
+
           await this.savePost(entry, categories);
         } catch (error) {
           this.logger.error(`Error processing ingest ${entry.id}:`, error);
@@ -441,7 +545,27 @@ export class IngestService {
       else if (entry?.items?.length) {
         for (const ingest of entry.items) {
           try {
-            const categories = ingest.categories || [];
+            // Extract categories from multiple sources
+            let categories = ingest.categories || [];
+
+            // If no categories in the root, try to extract from classification results
+            if (
+              categories.length === 0 &&
+              ingest._vote?.content_classification?.full_result?.labels
+            ) {
+              const classificationResults =
+                ingest._vote.content_classification.full_result;
+              const threshold = 0.1; // Minimum score threshold
+
+              categories = classificationResults.labels
+                .slice(0, 5) // Take top 5 labels
+                .filter(
+                  (_, index) =>
+                    classificationResults.scores[index] >= threshold,
+                )
+                .slice(0, 3); // Limit to top 3 categories
+            }
+
             await this.savePost(ingest, categories);
           } catch (error) {
             this.logger.error(`Error processing ingest ${ingest.id}:`, error);

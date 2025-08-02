@@ -37,6 +37,7 @@ import { BackupService } from './backup/backup.service';
       provide: QdrantClient,
       useFactory: (configService: ConfigService) => {
         const qdrantUrl = configService.get('QDRANT_URL');
+
         return new QdrantClient({ url: qdrantUrl });
       },
       inject: [ConfigService],
