@@ -180,11 +180,6 @@ export class IngestService {
       await this.qdrantClient.upsert(this.collectionName, {
         points: [pointData],
       });
-      
-      this.logger.log('Successfully stored post vector in Qdrant', {
-        postId: post.uuid,
-        pointId: post.id,
-      });
     } catch (error) {
       this.logger.error('Failed to store post vector in Qdrant', '', {
         postId: post.uuid,
@@ -202,7 +197,7 @@ export class IngestService {
   // @Cron(`* * * * *`)
   monitorIngest() {
     try {
-      console.log('Monitoring content ingestion');
+
       void this.trigger();
     } catch (error) {
       this.logger.error('Monitoring content ingestion failed:', error);
@@ -276,6 +271,9 @@ export class IngestService {
   ): Promise<Post> {
     // Use real embeddings from the ingest data
     const embedding = ingestData.embeddings || [];
+    console.log('DEBUG: embedding length:', embedding.length);
+    console.log('DEBUG: ingestData.embeddings exists:', !!ingestData.embeddings);
+    console.log('DEBUG: first few embedding values:', embedding.slice(0, 3));
 
     // Check for similar existing posts only if embeddings are available
     let duplicates: any[] = [];
@@ -325,7 +323,6 @@ export class IngestService {
       media: ingestData.media,
       linkPreview: ingestData.linkPreview,
       original: ingestData.original,
-      // Note: embeddings are stored in Qdrant only, not in MySQL
 
       /**
        * Legacy fields for backward compatibility
@@ -359,7 +356,29 @@ export class IngestService {
       this.logger.error('Failed to send notification for new post:', error);
     }
 
-    return post;
+    // Load categories relation for complete response
+    const completePost = await this.postModel.findByPk(post.id, {
+      include: [{ model: Category, as: 'categories_relation' }],
+    });
+
+    const finalPost = completePost || post;
+
+    // Attach embeddings to the final post object for the response (not stored in MySQL)
+    console.log('DEBUG: About to attach embeddings, length:', embedding.length);
+    if (embedding.length > 0) {
+      (finalPost as any).embedding = embedding;
+      console.log('DEBUG: Embeddings attached to finalPost');
+      console.log(
+        'DEBUG: finalPost.embeddings length:',
+        (finalPost as any).embedding?.length,
+      );
+    } else {
+      console.log('DEBUG: No embeddings to attach (length is 0)');
+    }
+
+    console.log(JSON.stringify(finalPost, null, 2));
+
+    return finalPost;
   }
 
   /**
@@ -494,84 +513,49 @@ export class IngestService {
    * @param data - The delivery request containing the payload (object or array).
    */
   async receive(data: any) {
-    const dataList = Array.isArray(data) ? data : [data];
-    for (const entry of dataList) {
-      if (entry?.keywords) {
-        entry.keywords.forEach((keyword: string) => {
-          const key = keyword.toLowerCase();
-          const currentValue = this.topicsQueue.get(key) || 0;
-          const newValue = currentValue + 1;
-          this.topicsQueue.set(key, newValue);
+    // Process keywords if they exist (this is optional)
+    if (data?.keywords) {
+      data.keywords.forEach((keyword: string) => {
+        const key = keyword.toLowerCase();
+        const currentValue = this.topicsQueue.get(key) || 0;
+        const newValue = currentValue + 1;
+        this.topicsQueue.set(key, newValue);
+      });
+    }
+
+    try {
+      // Extract categories from multiple sources
+      let categories = data.categories || [];
+
+      // If no categories in the root, try to extract from classification results
+      if (
+        categories.length === 0 &&
+        data._vote?.content_classification?.full_result?.labels
+      ) {
+        // Use top 3 categories from classification results with scores above threshold
+        const classificationResults =
+          data._vote.content_classification.full_result;
+        const threshold = 0.1; // Minimum score threshold
+
+        categories = classificationResults.labels
+          .slice(0, 5) // Take top 5 labels
+          .filter(
+            (_, index) => classificationResults.scores[index] >= threshold,
+          )
+          .slice(0, 3); // Limit to top 3 categories
+
+        this.logger.log(`Extracted categories from classification`, {
+          postId: data.id,
+          originalCategories: data.categories,
+          extractedCategories: categories,
+          classificationScores: classificationResults.scores.slice(0, 3),
         });
       }
 
-      // Handle direct post objects (your posts array)
-      if (entry?.id && entry?.source && entry?.content) {
-        try {
-          // Extract categories from multiple sources
-          let categories = entry.categories || [];
-
-          // If no categories in the root, try to extract from classification results
-          if (
-            categories.length === 0 &&
-            entry._vote?.content_classification?.full_result?.labels
-          ) {
-            // Use top 3 categories from classification results with scores above threshold
-            const classificationResults =
-              entry._vote.content_classification.full_result;
-            const threshold = 0.1; // Minimum score threshold
-
-            categories = classificationResults.labels
-              .slice(0, 5) // Take top 5 labels
-              .filter(
-                (_, index) => classificationResults.scores[index] >= threshold,
-              )
-              .slice(0, 3); // Limit to top 3 categories
-
-            this.logger.log(`Extracted categories from classification`, {
-              postId: entry.id,
-              originalCategories: entry.categories,
-              extractedCategories: categories,
-              classificationScores: classificationResults.scores.slice(0, 3),
-            });
-          }
-
-          await this.savePost(entry, categories);
-        } catch (error) {
-          this.logger.error(`Error processing ingest ${entry.id}:`, error);
-        }
-      }
-      // Handle wrapped posts in items array (legacy format)
-      else if (entry?.items?.length) {
-        for (const ingest of entry.items) {
-          try {
-            // Extract categories from multiple sources
-            let categories = ingest.categories || [];
-
-            // If no categories in the root, try to extract from classification results
-            if (
-              categories.length === 0 &&
-              ingest._vote?.content_classification?.full_result?.labels
-            ) {
-              const classificationResults =
-                ingest._vote.content_classification.full_result;
-              const threshold = 0.1; // Minimum score threshold
-
-              categories = classificationResults.labels
-                .slice(0, 5) // Take top 5 labels
-                .filter(
-                  (_, index) =>
-                    classificationResults.scores[index] >= threshold,
-                )
-                .slice(0, 3); // Limit to top 3 categories
-            }
-
-            await this.savePost(ingest, categories);
-          } catch (error) {
-            this.logger.error(`Error processing ingest ${ingest.id}:`, error);
-          }
-        }
-      }
+      return this.savePost(data, categories);
+    } catch (error) {
+      this.logger.error(`Error processing ingest ${data.id}:`, error);
+      throw error; // Re-throw the error so the controller can handle it properly
     }
   }
 }

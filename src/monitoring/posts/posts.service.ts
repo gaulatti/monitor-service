@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { NotificationsService } from 'src/core/notifications/notifications.service';
+import { Logger } from 'src/decorators/logger.decorator';
 import { NotificationPayload, PostResponseDto } from 'src/dto';
 import { Category, Post, Tagging } from 'src/models';
 import { JSONLogger } from 'src/utils/logger';
-import { Logger } from 'src/decorators/logger.decorator';
 
 /**
  * Service responsible for managing and retrieving posts, handling post-category relationships,
@@ -133,19 +133,6 @@ export class PostsService {
    */
   async notifyNewIngest(post: Post, categories: Category[]): Promise<void> {
     const startTime = Date.now();
-    
-    this.logger.log('Starting new post notification', {
-      postId: post.uuid,
-      postHash: post.hash,
-      source: post.source,
-      relevance: post.relevance,
-      language: post.lang,
-      categories: categories.map((cat) => cat.slug),
-      categoriesCount: categories.length,
-      contentLength: post.content.length,
-      author: post.author || 'Unknown',
-      postedAt: post.posted_at.toISOString(),
-    });
 
     const payload: NotificationPayload = {
       id: post.uuid,
@@ -168,20 +155,8 @@ export class PostsService {
       categories: categories.map((category) => category.slug),
     };
 
-    this.logger.log('Notification payload prepared', {
-      postId: post.uuid,
-      payloadSize: JSON.stringify(payload).length,
-      hasMedia: !!post.media,
-      hasLinkPreview: !!post.linkPreview,
-    });
-
     // Broadcast to SSE clients (existing functionality)
     this.notificationsService.broadcast(payload);
-
-    this.logger.log('SSE broadcast completed', {
-      postId: post.uuid,
-      timestamp: new Date().toISOString(),
-    });
 
     // Send push notifications to devices based on relevance threshold
     try {
@@ -195,26 +170,9 @@ export class PostsService {
         publishedAt: post.posted_at.toISOString(),
       };
 
-      this.logger.log('Sending push notifications', {
-        postId: post.uuid,
-        title: postNotificationData.title,
-        relevance: post.relevance,
-        categories: postNotificationData.categories,
-        titleLength: postNotificationData.title.length,
-      });
-
       await this.notificationsService.sendPostNotification(
         postNotificationData,
       );
-
-      const duration = Date.now() - startTime;
-      this.logger.log('Post notification completed successfully', {
-        postId: post.uuid,
-        totalDurationMs: duration,
-        source: post.source,
-        relevance: post.relevance,
-        categoriesCount: categories.length,
-      });
     } catch (error) {
       const duration = Date.now() - startTime;
       this.logger.error('Failed to send push notifications for new post', '', {
@@ -280,11 +238,11 @@ export class PostsService {
     // Take first sentence or line, limited to 60 characters
     const firstSentence = cleanContent.split(/[.!?]\s+/)[0];
     const firstLine = cleanContent.split('\n')[0];
-    
+
     // Use the shorter of first sentence or first line
     const title =
       firstSentence.length <= firstLine.length ? firstSentence : firstLine;
-    
+
     // Truncate to 60 characters for push notification limits
     return title.length > 60 ? `${title.substring(0, 60)}...` : title;
   }

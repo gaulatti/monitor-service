@@ -321,12 +321,6 @@ export class DeviceService {
     postRelevance: number,
     postCategories: string[],
   ): Promise<Device[]> {
-    this.logger.log('Finding notification targets', {
-      postRelevance,
-      postCategories,
-      categoryCount: postCategories.length,
-    });
-
     const devices = await this.deviceModel.findAll({
       where: {
         isActive: true,
@@ -339,17 +333,6 @@ export class DeviceService {
           // Devices with matching categories
           { categories: { [Op.overlap]: postCategories } },
         ],
-      },
-    });
-
-    this.logger.log('Found notification targets', {
-      eligibleDeviceCount: devices.length,
-      postRelevance,
-      postCategories,
-      deviceStats: {
-        totalFound: devices.length,
-        platforms: this.getDevicePlatformStats(devices),
-        relevanceThresholds: this.getRelevanceThresholdStats(devices),
       },
     });
 

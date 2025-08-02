@@ -380,15 +380,12 @@ export class NotificationsService
       [deviceToken],
       notification,
     );
-
-    this.logger.log(`Test notification sent to device: ${deviceToken}`);
   }
 
   /**
    * Send bulk notifications for multiple posts (used for catch-up scenarios)
    */
   async sendBulkNotifications(posts: PostNotificationData[]): Promise<void> {
-    this.logger.log(`Sending bulk notifications for ${posts.length} posts`);
 
     for (const post of posts) {
       try {

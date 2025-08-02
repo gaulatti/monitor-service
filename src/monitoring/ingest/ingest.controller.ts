@@ -21,6 +21,6 @@ export class IngestController {
   @Post()
   @Public()
   deliver(@Body() { input }) {
-    void this.ingestService.receive(input);
+    return this.ingestService.receive(input);
   }
 }

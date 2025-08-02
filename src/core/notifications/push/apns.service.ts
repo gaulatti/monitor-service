@@ -170,18 +170,7 @@ export class ApnsService {
     payload: PushNotificationPayload,
   ): Promise<{ success: boolean; error?: string }> {
     const maskedToken = this.maskDeviceToken(deviceToken);
-    
-    this.logger.log('Sending push notification', {
-      maskedDeviceToken: maskedToken,
-      postId: payload.postId,
-      title: payload.title,
-      bodyLength: payload.body.length,
-      relevance: payload.relevance,
-      categories: payload.categories,
-      badge: payload.badge,
-      isInitialized: this.isInitialized,
-    });
-
+ 
     if (!this.isInitialized) {
       this.logger.error('APNs provider not initialized', '', {
         maskedDeviceToken: maskedToken,
@@ -213,13 +202,6 @@ export class ApnsService {
       // Set expiration (1 hour from now)
       notification.expiry = Math.floor(Date.now() / 1000) + 3600;
 
-      this.logger.log('Notification prepared, sending to APNs', {
-        maskedDeviceToken: maskedToken,
-        postId: payload.postId,
-        topic: notification.topic,
-        expiry: notification.expiry,
-        payloadSize: JSON.stringify(notification.payload).length,
-      });
 
       const result = await this.apnProvider.send(notification, deviceToken);
 
@@ -273,13 +255,7 @@ export class ApnsService {
     deviceTokens: string[],
     payload: PushNotificationPayload,
   ): Promise<{ success: number; failed: number; errors: string[] }> {
-    this.logger.log('Sending bulk push notifications', {
-      deviceCount: deviceTokens.length,
-      postId: payload.postId,
-      title: payload.title,
-      relevance: payload.relevance,
-      categories: payload.categories,
-    });
+
 
     const results = {
       success: 0,
@@ -302,15 +278,6 @@ export class ApnsService {
 
     await Promise.all(promises);
 
-    this.logger.log('Bulk notification completed', {
-      postId: payload.postId,
-      totalDevices: deviceTokens.length,
-      successCount: results.success,
-      failedCount: results.failed,
-      successRate:
-        ((results.success / deviceTokens.length) * 100).toFixed(2) + '%',
-      errorCount: results.errors.length,
-    });
 
     return results;
   }
