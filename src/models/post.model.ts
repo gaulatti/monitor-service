@@ -110,7 +110,7 @@ export class Post extends Model<Post> {
   hash: string;
 
   @Column({
-    type: DataType.STRING,
+    type: DataType.TEXT,
     allowNull: true,
   })
   original: string;
