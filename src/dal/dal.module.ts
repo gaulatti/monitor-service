@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SequelizeModule } from '@nestjs/sequelize';
+import { QdrantClient } from '@qdrant/js-client-rest';
 import {
   Analytics,
   Category,
@@ -15,6 +17,7 @@ import { BackupService } from './backup/backup.service';
 
 @Module({
   imports: [
+    ConfigModule,
     SequelizeModule.forFeature([
       Post,
       Category,
@@ -27,7 +30,17 @@ import { BackupService } from './backup/backup.service';
       Analytics,
     ]),
   ],
-  exports: [SequelizeModule],
-  providers: [BackupService],
+  exports: [SequelizeModule, QdrantClient],
+  providers: [
+    BackupService,
+    {
+      provide: QdrantClient,
+      useFactory: (configService: ConfigService) => {
+        const qdrantUrl = configService.get('QDRANT_URL');
+        return new QdrantClient({ url: qdrantUrl });
+      },
+      inject: [ConfigService],
+    },
+  ],
 })
 export class DalModule {}

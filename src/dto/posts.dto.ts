@@ -51,6 +51,30 @@ export interface GetPostsQueryDto {
 }
 
 /**
+ * Data Transfer Object for similarity search queries.
+ *
+ * @property embedding - The embedding vector to search for similar content.
+ * @property limit - (Optional) Maximum number of similar posts to return (default: 10).
+ */
+export interface SimilaritySearchQueryDto {
+  embedding: number[];
+  limit?: number;
+}
+
+/**
+ * Data Transfer Object for similarity search results.
+ *
+ * @property postId - The unique identifier of the similar post.
+ * @property score - The similarity score (0.0 to 1.0).
+ * @property content - (Optional) Snippet of the similar post content.
+ */
+export interface SimilaritySearchResultDto {
+  postId: string;
+  score: number;
+  content?: string;
+}
+
+/**
  * Data Transfer Object for deduplication requests.
  *
  * @property input - An array of strings to be deduplicated.

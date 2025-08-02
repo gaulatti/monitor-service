@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/sequelize';
 import axios from 'axios';
+import { QdrantClient } from '@qdrant/js-client-rest';
 import { Logger } from 'src/decorators/logger.decorator';
 import { IngestDto } from 'src/dto';
 import { Category, Post } from 'src/models';
@@ -23,14 +24,17 @@ import { PostsService } from '../posts/posts.service';
  * Dependencies:
  * - `Post` and `Category` models for database operations.
  * - `PostsService` for post-related business logic and notifications.
+ * - `QdrantClient` for vector similarity operations (provided by DalModule).
  *
  * Environment Variables:
  * - `N8N_WEBHOOK`: URL for the n8n webhook endpoint.
  * - `N8N_API_KEY`: API key for authenticating requests to the n8n webhook.
+ * - `QDRANT_URL`: URL for the Qdrant vector database (optional, defaults to localhost).
  *
  * @remarks
  * This service is designed to be extensible and integrates with external automation tools (like n8n)
- * for further processing of trending topics and ingested content.
+ * for further processing of trending topics and ingested content. It leverages QdrantClient from DalModule
+ * for vector similarity operations and duplicate detection.
  */
 @Injectable()
 export class IngestService {
@@ -39,6 +43,16 @@ export class IngestService {
    */
   @Logger(IngestService.name)
   private readonly logger!: JSONLogger;
+
+  /**
+   * Collection name for storing post vectors.
+   */
+  private readonly collectionName = 'posts_vectors';
+
+  /**
+   * Similarity threshold for duplicate detection (0.0 to 1.0).
+   */
+  private readonly similarityThreshold = 0.85;
 
   /**
    * TODO: Define this in the UI.
@@ -58,7 +72,127 @@ export class IngestService {
     @InjectModel(Category)
     private categoryModel: typeof Category,
     private readonly postsService: PostsService,
-  ) {}
+    @Inject(QdrantClient)
+    private readonly qdrantClient: QdrantClient,
+  ) {
+    // Initialize collection on startup
+    void this.initializeQdrantCollection();
+  }
+
+  /**
+   * Checks if Qdrant is healthy and accessible.
+   */
+  private async isQdrantHealthy(): Promise<boolean> {
+    try {
+      await this.qdrantClient.getCollections();
+      return true;
+    } catch (error) {
+      this.logger.error('Qdrant health check failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Initializes the Qdrant collection for storing post vectors.
+   * This leverages the QdrantClient provided by DalModule.
+   */
+  private async initializeQdrantCollection(): Promise<void> {
+    try {
+      const isHealthy = await this.isQdrantHealthy();
+      if (!isHealthy) {
+        this.logger.warn(
+          'Qdrant is not accessible, skipping collection initialization',
+        );
+        return;
+      }
+
+      const collections = await this.qdrantClient.getCollections();
+      const collectionExists = collections.collections.some(
+        (col) => col.name === this.collectionName,
+      );
+
+      if (!collectionExists) {
+        await this.qdrantClient.createCollection(this.collectionName, {
+          vectors: {
+            size: 384, // Updated to match the actual embedding dimension from real data
+            distance: 'Cosine',
+          },
+        });
+        this.logger.log(`Created Qdrant collection: ${this.collectionName}`);
+      }
+    } catch (error) {
+      this.logger.error('Failed to initialize Qdrant collection:', error);
+    }
+  }
+
+  /**
+   * Searches for similar posts using vector similarity.
+   * This method leverages the QdrantClient from DalModule.
+   */
+  private async findSimilarPosts(
+    embedding: number[],
+    limit: number = 5,
+  ): Promise<any[]> {
+    try {
+      const isHealthy = await this.isQdrantHealthy();
+      if (!isHealthy) {
+        this.logger.warn(
+          'Qdrant is not accessible, skipping similarity search',
+        );
+        return [];
+      }
+
+      const searchResult = await this.qdrantClient.search(this.collectionName, {
+        vector: embedding,
+        limit,
+        with_payload: true,
+      });
+
+      return searchResult.map((result) => ({
+        postId: result.payload?.postId,
+        score: result.score,
+        content: result.payload?.content,
+      }));
+    } catch (error) {
+      this.logger.error('Failed to search similar posts:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Stores post vector in Qdrant.
+   * This method leverages the QdrantClient from DalModule.
+   */
+  private async storePostVector(
+    post: Post,
+    embedding: number[],
+  ): Promise<void> {
+    try {
+      const isHealthy = await this.isQdrantHealthy();
+      if (!isHealthy) {
+        this.logger.warn('Qdrant is not accessible, skipping vector storage');
+        return;
+      }
+
+      await this.qdrantClient.upsert(this.collectionName, {
+        points: [
+          {
+            id: post.uuid,
+            vector: embedding,
+            payload: {
+              postId: post.uuid,
+              content: post.content?.substring(0, 500), // Store truncated content
+              source: post.source,
+              createdAt: post.createdAt?.toISOString(),
+              hash: post.hash,
+            },
+          },
+        ],
+      });
+    } catch (error) {
+      this.logger.error('Failed to store post vector:', error);
+    }
+  }
 
   /**
    * Monitors the content ingestion service by triggering the monitoring process.
@@ -89,6 +223,11 @@ export class IngestService {
    * The n8n webhook URL and API key are expected to be provided via environment variables `N8N_WEBHOOK` and `N8N_API_KEY`.
    */
   trigger() {
+    /**
+     * Update topic relevance based on vector similarity.
+     */
+    void this.updateTopicRelevance();
+
     /**
      * Sends the top keywords to the n8n webhook for further processing.
      */
@@ -126,6 +265,7 @@ export class IngestService {
 
   /**
    * Saves an ingested post to the database and sends notifications.
+   * This method includes vector similarity checking using QdrantClient from DalModule.
    *
    * @param ingestData - The ingested post data
    * @param categories - Array of category slugs to associate with the post
@@ -135,6 +275,26 @@ export class IngestService {
     ingestData: IngestDto,
     categories: string[] = [],
   ): Promise<Post> {
+    // Use real embeddings from the ingest data
+    const embedding = ingestData.embeddings || [];
+
+    // Check for similar existing posts only if embeddings are available
+    let duplicates: any[] = [];
+    if (embedding.length > 0) {
+      const similarPosts = await this.findSimilarPosts(embedding, 3);
+      duplicates = similarPosts.filter(
+        (similar) => similar.score >= this.similarityThreshold,
+      );
+
+      if (duplicates.length > 0) {
+        this.logger.log(
+          `Found ${duplicates.length} similar posts for content: ${ingestData.content.substring(0, 100)}...`,
+        );
+        // Optionally skip saving or merge with existing post
+        // For now, we'll log and continue with saving
+      }
+    }
+
     const categorySlugs = categories || [];
     const categoryModels: Category[] = [];
 
@@ -166,6 +326,7 @@ export class IngestService {
       media: ingestData.media,
       linkPreview: ingestData.linkPreview,
       original: ingestData.original,
+      // Note: embeddings are stored in Qdrant only, not in MySQL
 
       /**
        * Legacy fields for backward compatibility
@@ -182,6 +343,11 @@ export class IngestService {
       await post.$set('categories_relation', categoryModels);
     }
 
+    // Store post vector in Qdrant (leveraging DalModule's QdrantClient)
+    if (embedding.length > 0) {
+      await this.storePostVector(post, embedding);
+    }
+
     /**
      * Notify about the new post.
      */
@@ -195,6 +361,54 @@ export class IngestService {
     }
 
     return post;
+  }
+
+  /**
+   * Searches for posts similar to a given query embedding.
+   * Uses vector similarity search in Qdrant to find semantically similar posts.
+   */
+  async searchSimilarContent(
+    queryEmbedding: number[],
+    limit: number = 10,
+  ): Promise<any[]> {
+    if (queryEmbedding.length === 0) {
+      this.logger.warn('Empty embedding provided for similarity search');
+      return [];
+    }
+    return this.findSimilarPosts(queryEmbedding, limit);
+  }
+
+  /**
+   * Updates topic relevance based on vector similarity clustering.
+   * Since embeddings are stored in Qdrant only, this method focuses on
+   * content-based keyword extraction and frequency analysis.
+   */
+  private async updateTopicRelevance(): Promise<void> {
+    try {
+      // Get recent posts to analyze topic trends
+      const recentPosts = await this.postModel.findAll({
+        limit: 100,
+        order: [['createdAt', 'DESC']],
+      });
+
+      // Extract keywords from content and boost their frequency based on relevance
+      for (const post of recentPosts) {
+        if (post.content) {
+          // Extract keywords from content and boost their frequency
+          const words = post.content.toLowerCase().match(/\b\w{4,}\b/g) || [];
+          words.forEach((word) => {
+            if (!this.seeds.has(word)) {
+              const current = this.topicsQueue.get(word) || 0;
+              // Boost frequency based on post relevance score
+              const boost = Math.ceil(post.relevance / 2);
+              this.topicsQueue.set(word, current + boost);
+            }
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.error('Failed to update topic relevance:', error);
+    }
   }
 
   /**

@@ -4,6 +4,8 @@ export {
   DedupRequestDto,
   GetPostsQueryDto as GetIngestsQueryDto,
   PostResponseDto,
+  SimilaritySearchQueryDto,
+  SimilaritySearchResultDto,
 } from './posts.dto';
 export {
   DeviceInfoDto,
