@@ -139,6 +139,7 @@ export class IngestService {
       });
 
       return searchResult.map((result) => ({
+        id: result.id,
         uuid: result.payload?.uuid,
         score: result.score,
         content: result.payload?.content,
