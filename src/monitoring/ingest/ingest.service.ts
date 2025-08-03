@@ -139,7 +139,7 @@ export class IngestService {
       });
 
       return searchResult.map((result) => ({
-        postId: result.payload?.postId,
+        uuid: result.payload?.uuid,
         score: result.score,
         content: result.payload?.content,
         embeddings: result.vector, // Include the embeddings for second pass similarity
@@ -159,7 +159,7 @@ export class IngestService {
   ): Promise<void> {
     if (embedding.length !== 384) {
       this.logger.warn('Invalid embedding dimensions', {
-        postId: post.uuid,
+        uuid: post.uuid,
         expectedDimensions: 384,
         actualDimensions: embedding.length,
       });
@@ -167,11 +167,10 @@ export class IngestService {
     }
 
     const pointData = {
-      id: post.id, // Use MySQL auto-increment ID as Qdrant point ID
+      id: post.id,
       vector: embedding,
       payload: {
-        postId: post.uuid,
-        mysqlId: post.id,
+        uuid: post.uuid,
         content: post.content?.substring(0, 500) || '',
         source: post.source || '',
         createdAt: post.createdAt?.toISOString() || new Date().toISOString(),
@@ -185,7 +184,7 @@ export class IngestService {
       });
     } catch (error) {
       this.logger.error('Failed to store post vector in Qdrant', '', {
-        postId: post.uuid,
+        uuid: post.uuid,
         error: error.message,
       });
     }
@@ -396,7 +395,7 @@ export class IngestService {
     // Attach similar posts to the response
     if (similarPosts.length > 0) {
       (postData as any).similarPosts = similarPosts.map((similar) => ({
-        postId: similar.postId,
+        uuid: similar.uuid,
         score: similar.score,
         content: similar.content, // Full content without truncation
         embeddings: similar.embeddings, // Include embeddings for second pass similarity
@@ -431,8 +430,7 @@ export class IngestService {
   async listVectors(limit: number = 20): Promise<{
     vectors: Array<{
       id: number;
-      postId?: string;
-      mysqlId?: number;
+      uuid?: string;
       content?: string;
       source?: string;
       createdAt?: string;
@@ -459,8 +457,7 @@ export class IngestService {
 
     const vectors = scrollResult.points.map((point) => ({
       id: point.id as number,
-      postId: point.payload?.postId as string,
-      mysqlId: point.payload?.mysqlId as number,
+      uuid: point.payload?.uuid as string,
       content:
         typeof point.payload?.content === 'string'
           ? point.payload.content.substring(0, 100) + '...'
@@ -573,7 +570,7 @@ export class IngestService {
           .slice(0, 3); // Limit to top 3 categories
 
         this.logger.log(`Extracted categories from classification`, {
-          postId: data.id,
+          uuid: data.id,
           originalCategories: data.categories,
           extractedCategories: categories,
           classificationScores: classificationResults.scores.slice(0, 3),
