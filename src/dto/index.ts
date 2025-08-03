@@ -22,3 +22,8 @@ export {
   ClusterRequestDto,
   ClusterResponseDto,
 } from './cluster.dto';
+export {
+  EventPostDto,
+  EventResponseDto,
+  EventsListResponseDto,
+} from './events.dto';

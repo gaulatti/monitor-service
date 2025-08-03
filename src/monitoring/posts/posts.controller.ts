@@ -8,6 +8,7 @@ import {
   SimilaritySearchResultDto,
   ClusterRequestDto,
   ClusterResponseDto,
+  EventsListResponseDto,
 } from 'src/dto';
 import { IngestService } from '../ingest/ingest.service';
 import { PostsService } from './posts.service';
@@ -106,5 +107,14 @@ export class PostsController {
     @Body() { input }: { input: ClusterRequestDto },
   ): Promise<ClusterResponseDto> {
     return await this.postsService.processCluster(input);
+  }
+
+  @Get('events')
+  @Public()
+  async getEvents(
+    @Query('limit') limit?: number,
+  ): Promise<EventsListResponseDto> {
+    const parsedLimit = limit && limit > 0 && limit <= 100 ? limit : 50;
+    return await this.postsService.getEvents(parsedLimit);
   }
 }

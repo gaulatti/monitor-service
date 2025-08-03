@@ -6,6 +6,7 @@ import { Logger } from 'src/decorators/logger.decorator';
 import {
   ClusterRequestDto,
   ClusterResponseDto,
+  EventsListResponseDto,
   NotificationPayload,
   PostResponseDto,
 } from 'src/dto';
@@ -399,6 +400,88 @@ export class PostsService {
         error: error.message,
         groupId: group.group_id,
         postsCount: group.posts.length,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves all events with their associated posts.
+   * Returns events ordered by creation date (most recent first).
+   *
+   * @param limit - Maximum number of events to return (default: 50)
+   * @returns A response containing events with their posts
+   */
+  async getEvents(limit: number = 50): Promise<EventsListResponseDto> {
+    try {
+      const events = await this.eventModel.findAll({
+        order: [['created_at', 'DESC']],
+        limit: Math.min(limit, 100), // Cap at 100 events
+        include: [
+          {
+            model: Post,
+            through: {
+              attributes: ['match_score', 'added_by', 'added_at'],
+            },
+            attributes: [
+              'id',
+              'uuid',
+              'content',
+              'source',
+              'uri',
+              'hash',
+              'author_name',
+              'author_handle',
+              'createdAt',
+              'relevance',
+            ],
+          },
+        ],
+      });
+
+      const eventsData = events.map((event) => ({
+        id: event.id,
+        uuid: event.uuid,
+        title: event.title,
+        summary: event.summary,
+        status: event.status,
+        created_at: event.created_at.toISOString(),
+        updated_at: event.updated_at.toISOString(),
+        posts_count: event.posts ? event.posts.length : 0,
+        posts: event.posts
+          ? event.posts.map((post) => ({
+              id: post.id,
+              uuid: post.uuid,
+              content: post.content || '',
+              source: post.source || '',
+              uri: post.uri || '',
+              hash: post.hash || '',
+              author_name: post.author_name || '',
+              author_handle: post.author_handle || '',
+              createdAt: post.createdAt.toISOString(),
+              relevance: post.relevance,
+              match_score: (post as any).Match?.match_score || 0,
+            }))
+          : [],
+      }));
+
+      this.logger.log('Retrieved events with posts', {
+        eventsCount: eventsData.length,
+        totalPosts: eventsData.reduce(
+          (sum, event) => sum + event.posts_count,
+          0,
+        ),
+        limit,
+      });
+
+      return {
+        events: eventsData,
+        total: eventsData.length,
+      };
+    } catch (error) {
+      this.logger.error('Failed to retrieve events', '', {
+        error: error.message,
+        limit,
       });
       throw error;
     }
