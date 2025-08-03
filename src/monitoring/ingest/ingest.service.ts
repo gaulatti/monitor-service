@@ -143,6 +143,9 @@ export class IngestService {
         uuid: result.payload?.uuid,
         score: result.score,
         content: result.payload?.content,
+        source: result.payload?.source,
+        createdAt: result.payload?.createdAt,
+        hash: result.payload?.hash,
         embeddings: result.vector, // Include the embeddings for second pass similarity
       }));
     } catch (error) {
@@ -396,9 +399,13 @@ export class IngestService {
     // Attach similar posts to the response
     if (similarPosts.length > 0) {
       (postData as any).similarPosts = similarPosts.map((similar) => ({
+        id: similar.id,
         uuid: similar.uuid,
         score: similar.score,
         content: similar.content, // Full content without truncation
+        source: similar.source,
+        createdAt: similar.createdAt,
+        hash: similar.hash,
         embeddings: similar.embeddings, // Include embeddings for second pass similarity
       }));
       console.log('DEBUG: Similar posts attached:', similarPosts.length);
