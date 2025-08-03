@@ -16,3 +16,9 @@ export {
   DeviceRegistrationResponseDto,
   AnalyticsEventDto,
 } from './device.dto';
+export {
+  ClusterPostDto,
+  ClusterGroupDto,
+  ClusterRequestDto,
+  ClusterResponseDto,
+} from './cluster.dto';
