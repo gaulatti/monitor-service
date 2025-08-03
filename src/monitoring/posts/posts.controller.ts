@@ -103,8 +103,8 @@ export class PostsController {
   @Post('cluster')
   @Public()
   async processCluster(
-    @Body() clusterData: ClusterRequestDto,
+    @Body() { input }: { input: ClusterRequestDto },
   ): Promise<ClusterResponseDto> {
-    return await this.postsService.processCluster(clusterData);
+    return await this.postsService.processCluster(input);
   }
 }
