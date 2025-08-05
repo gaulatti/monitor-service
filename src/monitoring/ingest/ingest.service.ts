@@ -9,6 +9,7 @@ import { JSONLogger } from 'src/utils/logger';
 import { nanoid } from 'src/utils/nanoid';
 import { PostsService } from '../posts/posts.service';
 import { Cron } from '@nestjs/schedule';
+import { QdrantService } from 'src/dal/qdrant/qdrant.service';
 
 /**
  * Service responsible for ingesting, processing, and monitoring content within the application.
@@ -47,7 +48,7 @@ export class IngestService {
   /**
    * Collection name for storing post vectors.
    */
-  private readonly collectionName = 'posts_vectors';
+  private readonly collectionName: string;
 
   /**
    * Similarity threshold for duplicate detection (0.0 to 1.0).
@@ -74,52 +75,9 @@ export class IngestService {
     private readonly postsService: PostsService,
     @Inject(QdrantClient)
     private readonly qdrantClient: QdrantClient,
+    private readonly qdrantService: QdrantService,
   ) {
-    // Initialize collection on startup
-    void this.initializeQdrantCollection();
-  }
-
-  /**
-   * Initializes the Qdrant collection for storing post vectors.
-   */
-  private async initializeQdrantCollection(): Promise<void> {
-    try {
-      this.logger.log('Initializing Qdrant collection', {
-        collectionName: this.collectionName,
-        vectorSize: 384,
-      });
-
-      const collections = await this.qdrantClient.getCollections();
-      const collectionExists = collections.collections.some(
-        (col) => col.name === this.collectionName,
-      );
-
-      if (!collectionExists) {
-        this.logger.log('Creating new Qdrant collection', {
-          collectionName: this.collectionName,
-          vectorSize: 384,
-          distance: 'Cosine',
-        });
-
-        await this.qdrantClient.createCollection(this.collectionName, {
-          vectors: {
-            size: 384, // Updated to match the actual embedding dimension from real data
-            distance: 'Cosine',
-          },
-        });
-        this.logger.log(`Created Qdrant collection: ${this.collectionName}`);
-      } else {
-        this.logger.log('Qdrant collection already exists', {
-          collectionName: this.collectionName,
-        });
-      }
-    } catch (error) {
-      this.logger.error('Failed to initialize Qdrant collection', '', {
-        collectionName: this.collectionName,
-        error: error.message,
-        stack: error.stack,
-      });
-    }
+    this.collectionName = this.qdrantService.getCollectionName();
   }
 
   /**

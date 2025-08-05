@@ -14,6 +14,7 @@ import {
   Tagging,
 } from '../models';
 import { BackupService } from './backup/backup.service';
+import { QdrantService } from './qdrant/qdrant.service';
 
 @Module({
   imports: [
@@ -30,9 +31,10 @@ import { BackupService } from './backup/backup.service';
       Analytics,
     ]),
   ],
-  exports: [SequelizeModule, QdrantClient],
+  exports: [SequelizeModule, QdrantClient, QdrantService],
   providers: [
     BackupService,
+    QdrantService,
     {
       provide: QdrantClient,
       useFactory: (configService: ConfigService) => {

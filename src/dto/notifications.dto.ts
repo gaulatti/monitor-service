@@ -39,4 +39,5 @@ export interface NotificationPayload {
   posted_at: string;
   received_at: string;
   categories: string[];
+  type: 'POST' | 'EVENT';
 }

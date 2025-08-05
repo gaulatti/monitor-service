@@ -31,6 +31,16 @@ export interface PostNotificationData {
   publishedAt: string;
 }
 
+export interface EventNotificationData {
+  id: string;
+  uuid: string;
+  title: string;
+  summary: string;
+  posts_count: number;
+  status: 'created' | 'updated';
+  url?: string;
+}
+
 /**
  * Represents a client that receives notifications.
  *
@@ -386,7 +396,6 @@ export class NotificationsService
    * Send bulk notifications for multiple posts (used for catch-up scenarios)
    */
   async sendBulkNotifications(posts: PostNotificationData[]): Promise<void> {
-
     for (const post of posts) {
       try {
         await this.sendPostNotification(post);
@@ -426,5 +435,196 @@ export class NotificationsService
     return plainText.length > maxLength
       ? `${plainText.substring(0, maxLength)}...`
       : plainText;
+  }
+
+  /**
+   * Sends notifications for event creation or updates.
+   * Broadcasts to SSE clients and sends push notifications to relevant devices.
+   *
+   * @param event - The event notification data
+   */
+  async sendEventNotification(event: EventNotificationData): Promise<void> {
+    const startTime = Date.now();
+
+    try {
+      // Broadcast to SSE clients
+      this.broadcast({
+        type: 'event',
+        subtype: event.status,
+        id: event.uuid,
+        title: event.title,
+        summary: event.summary,
+        posts_count: event.posts_count,
+        status: event.status,
+        url: event.url,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Send push notifications to devices
+      // For events, we'll target devices with lower relevance thresholds since events are important
+      const targetDevices = await this.deviceService.getNotificationTargets(
+        5.0, // Lower threshold for events
+        [], // No specific categories for events
+      );
+
+      if (targetDevices.length === 0) {
+        this.logger.log('No target devices for event notification', {
+          eventId: event.uuid,
+          status: event.status,
+        });
+        return;
+      }
+
+      // Send notifications in batches
+      await this.sendEventNotificationBatch(event, targetDevices);
+
+      const duration = Date.now() - startTime;
+      this.logger.log('Event notification sent successfully', {
+        eventId: event.uuid,
+        status: event.status,
+        devicesCount: targetDevices.length,
+        durationMs: duration,
+      });
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.logger.error('Failed to send event notification', '', {
+        eventId: event.uuid,
+        status: event.status,
+        error: error.message,
+        stack: error.stack,
+        durationMs: duration,
+      });
+    }
+  }
+
+  /**
+   * Sends event notifications to a batch of devices.
+   */
+  private async sendEventNotificationBatch(
+    event: EventNotificationData,
+    devices: Device[],
+  ): Promise<void> {
+    const batchSize = 100;
+    const batches: Device[][] = [];
+
+    for (let i = 0; i < devices.length; i += batchSize) {
+      batches.push(devices.slice(i, i + batchSize));
+    }
+
+    for (const batch of batches) {
+      try {
+        // Send notifications one by one using the correct payload structure
+        for (const device of batch) {
+          const payload = {
+            postId: event.uuid, // Using event UUID as identifier
+            relevance: 7.0, // Higher relevance for events
+            categories: [], // Events don't have specific categories
+            title: `${event.status === 'created' ? 'New Event' : 'Event Updated'}: ${this.truncateTitle(event.title)}`,
+            body: this.truncateContent(event.summary),
+            badge: 1,
+          };
+
+          await this.apnsService.sendNotification(device.deviceToken, payload);
+        }
+        
+        this.logger.log('Event notification batch sent', {
+          eventId: event.uuid,
+          batchSize: batch.length,
+          status: event.status,
+        });
+      } catch (error) {
+        this.logger.error('Failed to send event notification batch', '', {
+          eventId: event.uuid,
+          batchSize: batch.length,
+          error: error.message,
+        });
+      }
+    }
+  }
+
+  /**
+   * Notifies about a newly ingested post by broadcasting and sending push notifications.
+   * This is a comprehensive method that handles both SSE and push notifications.
+   *
+   * @param post - The post object containing details about the ingested post
+   * @param categories - An array of categories associated with the post
+   */
+  async notifyNewIngest(post: any, categories: any[]): Promise<void> {
+    const startTime = Date.now();
+
+    try {
+      // Broadcast to SSE clients
+      this.broadcast({
+        id: post.uuid,
+        content: post.content,
+        source: post.source,
+        uri: post.uri,
+        relevance: post.relevance,
+        lang: post.lang,
+        hash: post.hash,
+        author: post.author,
+        author_id: post.author_id,
+        author_name: post.author_name,
+        author_handle: post.author_handle,
+        author_avatar: post.author_avatar,
+        media: post.media,
+        linkPreview: post.linkPreview,
+        original: post.original,
+        posted_at: post.posted_at.toISOString(),
+        received_at: post.received_at.toISOString(),
+        categories: categories.map((category) => category.slug),
+        type: 'POST',
+      });
+
+      // Send push notifications
+      const postNotificationData = {
+        id: post.uuid,
+        title: this.extractTitle(post.content),
+        content: post.content,
+        relevance: post.relevance,
+        categories: categories.map((category) => category.slug),
+        url: post.uri,
+        publishedAt: post.posted_at.toISOString(),
+      };
+
+      await this.sendPostNotification(postNotificationData);
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.logger.error('Failed to send notifications for new post', '', {
+        postId: post.uuid,
+        source: post.source,
+        relevance: post.relevance,
+        error: error.message,
+        stack: error.stack,
+        durationMs: duration,
+      });
+    }
+  }
+
+  /**
+   * Extracts a title from post content for notifications.
+   * Takes the first line or sentence of content, up to 60 characters.
+   */
+  private extractTitle(content: string): string {
+    if (!content) {
+      return 'New Post';
+    }
+
+    // Remove HTML tags and extra whitespace
+    const cleanContent = content
+      .replace(/<[^>]*>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Take first sentence or line, limited to 60 characters
+    const firstSentence = cleanContent.split(/[.!?]\s+/)[0];
+    const firstLine = cleanContent.split('\n')[0];
+
+    // Use the shorter of first sentence or first line
+    const title =
+      firstSentence.length <= firstLine.length ? firstSentence : firstLine;
+
+    // Truncate to 60 characters for push notification limits
+    return title.length > 60 ? `${title.substring(0, 60)}...` : title;
   }
 }
