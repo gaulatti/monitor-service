@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
-import { NotificationsService } from 'src/core/notifications/notifications.service';
 import { Logger } from 'src/decorators/logger.decorator';
 import { PostResponseDto } from 'src/dto';
 import { Category, Post, Tagging } from 'src/models';
@@ -9,26 +8,23 @@ import { JSONLogger } from 'src/utils/logger';
 
 /**
  * Service responsible for managing and retrieving posts, handling post-category relationships,
- * broadcasting notifications for new ingested posts, and deduplicating posts based on their hashes.
+ * and deduplicating posts based on their hashes.
  *
  * @remarks
  * This service interacts with the database models for posts, categories, and taggings.
  * It provides methods to:
  * - Retrieve posts filtered by categories and creation time.
- * - Notify subscribers about new ingested posts.
  * - Check for duplicate posts based on their hashes.
  *
  * @example
  * ```typescript
  * const posts = await postsService.getPostsByCategories(['news', 'tech']);
- * postsService.notifyNewIngest(post, categories);
  * const duplicates = await postsService.dedupPosts({ input: ['hash1', 'hash2'] });
  * ```
  *
  * @see Post
  * @see Category
  * @see Tagging
- * @see NotificationsService
  */
 @Injectable()
 export class PostsService {
@@ -42,7 +38,6 @@ export class PostsService {
     private categoryModel: typeof Category,
     @InjectModel(Tagging)
     private taggingModel: typeof Tagging,
-    private notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -121,26 +116,6 @@ export class PostsService {
       categories:
         post.categories_relation?.map((category) => category.slug) || [],
     }));
-  }
-
-  /**
-   * Notifies subscribers about a newly ingested post by delegating to the notifications service.
-   *
-   * @param post - The post object containing details about the ingested post.
-   * @param categories - An array of categories associated with the post.
-   */
-  async notifyNewIngest(post: Post, categories: Category[]): Promise<void> {
-    try {
-      await this.notificationsService.notifyNewIngest(post, categories);
-    } catch (error) {
-      this.logger.error('Failed to send notifications for new post', '', {
-        postId: post.uuid,
-        source: post.source,
-        relevance: post.relevance,
-        error: error.message,
-        stack: error.stack,
-      });
-    }
   }
 
   /**

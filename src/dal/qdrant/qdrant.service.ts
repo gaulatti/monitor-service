@@ -159,7 +159,7 @@ export class QdrantService implements OnModuleInit {
     type: QdrantCollectionType,
   ): Promise<void> {
     const config = this.getCollectionConfig(type);
-    
+
     try {
       this.logger.log('Initializing Qdrant collection', {
         type,

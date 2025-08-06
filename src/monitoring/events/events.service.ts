@@ -143,13 +143,30 @@ export class EventsService {
 
         // Send notification for new event
         try {
-          await this.notificationsService.sendEventNotification({
-            id: event.id.toString(),
-            uuid: event.uuid,
-            title: event.title,
-            summary: event.summary,
-            posts_count: posts.length,
-            status: 'created',
+          // Calculate average relevance of posts in this event
+          const averageRelevance =
+            posts.length > 0
+              ? posts.reduce((sum, post) => sum + post.relevance, 0) /
+                posts.length
+              : 0;
+
+          await this.notificationsService.notifyEvent(
+            {
+              id: event.id.toString(),
+              uuid: event.uuid,
+              title: event.title,
+              summary: event.summary,
+              posts_count: posts.length,
+              status: 'created',
+            },
+            averageRelevance,
+          );
+
+          this.logger.log('Event notification sent', {
+            eventId: event.id,
+            eventUuid: event.uuid,
+            averageRelevance,
+            postsCount: posts.length,
           });
         } catch (error) {
           this.logger.error('Failed to send event creation notification', '', {
@@ -194,14 +211,24 @@ export class EventsService {
       // Send notification for event update if posts were associated with existing event
       if (status === 'existing' && postsAssociated > 0) {
         try {
-          await this.notificationsService.sendEventNotification({
-            id: event.id.toString(),
-            uuid: event.uuid,
-            title: event.title,
-            summary: event.summary,
-            posts_count: posts.length,
-            status: 'updated',
-          });
+          // Calculate average relevance of posts in this event
+          const averageRelevance =
+            posts.length > 0
+              ? posts.reduce((sum, post) => sum + post.relevance, 0) /
+                posts.length
+              : 0;
+
+          await this.notificationsService.notifyEvent(
+            {
+              id: event.id.toString(),
+              uuid: event.uuid,
+              title: event.title,
+              summary: event.summary,
+              posts_count: posts.length,
+              status: 'updated',
+            },
+            averageRelevance,
+          );
         } catch (error) {
           this.logger.error('Failed to send event update notification', '', {
             eventId: event.id,
@@ -394,7 +421,7 @@ export class EventsService {
   ): Promise<any> {
     try {
       const event = await this.eventModel.findOne({ where: { uuid } });
-      
+
       if (!event) {
         return null;
       }

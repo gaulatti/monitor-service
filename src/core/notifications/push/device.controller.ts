@@ -43,7 +43,7 @@ export class DeviceController {
     @Body() deviceData: RegisterDeviceDto,
   ): Promise<DeviceRegistrationResponseDto> {
     const maskedToken = this.maskDeviceToken(deviceData.deviceToken);
-    
+
     this.logger.log('Device registration request received', {
       maskedDeviceToken: maskedToken,
       platform: deviceData.platform,
@@ -83,7 +83,7 @@ export class DeviceController {
     @Body() updateData: UpdateDeviceDto,
   ): Promise<void> {
     const maskedToken = this.maskDeviceToken(deviceToken);
-    
+
     this.logger.log('Device update request received', {
       maskedDeviceToken: maskedToken,
       relevanceThreshold: updateData.relevanceThreshold,
@@ -112,7 +112,7 @@ export class DeviceController {
     @Body() markReadData: MarkPostReadDto,
   ): Promise<void> {
     const maskedToken = this.maskDeviceToken(deviceToken);
-    
+
     this.logger.log('Mark post as read request received', {
       maskedDeviceToken: maskedToken,
       postId: markReadData.postId,
@@ -140,7 +140,7 @@ export class DeviceController {
     @Body() eventData: AnalyticsEventDto,
   ): Promise<void> {
     const maskedToken = this.maskDeviceToken(eventData.deviceToken);
-    
+
     this.logger.log('Analytics event received', {
       maskedDeviceToken: maskedToken,
       event: eventData.event,

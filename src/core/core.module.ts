@@ -7,11 +7,15 @@ import { NotificationsService } from './notifications/notifications.service';
 import { ApnsService } from './notifications/push/apns.service';
 import { DeviceController } from './notifications/push/device.controller';
 import { DeviceService } from './notifications/push/device.service';
+import { PushService } from './notifications/push/push.service';
+import { SSEService } from './notifications/sse/sse.service';
 
 @Module({
   imports: [DalModule, ConfigModule],
   providers: [
     NotificationsService,
+    PushService,
+    SSEService,
     CloudWatchService,
     ApnsService,
     DeviceService,
@@ -19,6 +23,8 @@ import { DeviceService } from './notifications/push/device.service';
   controllers: [NotificationsController, DeviceController],
   exports: [
     NotificationsService,
+    PushService,
+    SSEService,
     CloudWatchService,
     ApnsService,
     DeviceService,

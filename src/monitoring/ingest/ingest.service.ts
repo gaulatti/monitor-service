@@ -2,12 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import axios from 'axios';
+import { NotificationsService } from 'src/core/notifications/notifications.service';
 import { Logger } from 'src/decorators/logger.decorator';
 import { IngestDto } from 'src/dto';
 import { Category, Post } from 'src/models';
 import { JSONLogger } from 'src/utils/logger';
 import { nanoid } from 'src/utils/nanoid';
-import { PostsService } from '../posts/posts.service';
 import { Cron } from '@nestjs/schedule';
 import { QdrantService } from 'src/dal/qdrant/qdrant.service';
 
@@ -24,7 +24,6 @@ import { QdrantService } from 'src/dal/qdrant/qdrant.service';
  *
  * Dependencies:
  * - `Post` and `Category` models for database operations.
- * - `PostsService` for post-related business logic and notifications.
  * - `QdrantClient` for vector similarity operations (provided by DalModule).
  *
  * Environment Variables:
@@ -72,7 +71,7 @@ export class IngestService {
     private postModel: typeof Post,
     @InjectModel(Category)
     private categoryModel: typeof Category,
-    private readonly postsService: PostsService,
+    private readonly notificationsService: NotificationsService,
     @Inject(QdrantClient)
     private readonly qdrantClient: QdrantClient,
     private readonly qdrantService: QdrantService,
@@ -323,7 +322,7 @@ export class IngestService {
      * Notify about the new post.
      */
     try {
-      await this.postsService.notifyNewIngest(post, categoryModels);
+      await this.notificationsService.notifyIngestedPost(post, categoryModels);
     } catch (error) {
       /**
        * Log the error if notification fails.

@@ -170,7 +170,7 @@ export class ApnsService {
     payload: PushNotificationPayload,
   ): Promise<{ success: boolean; error?: string }> {
     const maskedToken = this.maskDeviceToken(deviceToken);
- 
+
     if (!this.isInitialized) {
       this.logger.error('APNs provider not initialized', '', {
         maskedDeviceToken: maskedToken,
@@ -181,7 +181,7 @@ export class ApnsService {
 
     try {
       const notification = new apn.Notification();
-      
+
       // Set notification properties
       notification.alert = {
         title: payload.title,
@@ -190,7 +190,7 @@ export class ApnsService {
       notification.badge = payload.badge || 1;
       notification.sound = 'default';
       notification.topic = this.configService.get<string>('APNS_BUNDLE_ID')!;
-      
+
       // Set custom payload data
       notification.payload = {
         postId: payload.postId,
@@ -201,7 +201,6 @@ export class ApnsService {
 
       // Set expiration (1 hour from now)
       notification.expiry = Math.floor(Date.now() / 1000) + 3600;
-
 
       const result = await this.apnProvider.send(notification, deviceToken);
 
@@ -217,7 +216,7 @@ export class ApnsService {
         const failure = result.failed[0];
         const errorMessage = failure.error?.message || 'Unknown error';
         const errorCode = failure.status || 'Unknown status';
-        
+
         this.logger.error('Push notification failed', '', {
           maskedDeviceToken: maskedToken,
           postId: payload.postId,
@@ -235,7 +234,7 @@ export class ApnsService {
         sentCount: result.sent.length,
         failedCount: result.failed.length,
       });
-      
+
       return { success: false, error: 'No result from APNs' };
     } catch (error) {
       this.logger.error('Error sending push notification', '', {
@@ -255,8 +254,6 @@ export class ApnsService {
     deviceTokens: string[],
     payload: PushNotificationPayload,
   ): Promise<{ success: number; failed: number; errors: string[] }> {
-
-
     const results = {
       success: 0,
       failed: 0,
@@ -277,7 +274,6 @@ export class ApnsService {
     });
 
     await Promise.all(promises);
-
 
     return results;
   }

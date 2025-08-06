@@ -340,6 +340,17 @@ export class DeviceService {
   }
 
   /**
+   * Get all active devices (for event notifications with user-specific thresholds)
+   */
+  async getAllDevices(): Promise<Device[]> {
+    return this.deviceModel.findAll({
+      where: {
+        isActive: true,
+      },
+    });
+  }
+
+  /**
    * Get devices that haven't read a specific post
    */
   async getUnreadDevices(postId: string, devices: Device[]): Promise<Device[]> {
