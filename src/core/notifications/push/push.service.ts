@@ -67,8 +67,8 @@ export class PushService {
       relevanceThreshold,
       () => ({
         postId: post.id,
-        title: this.truncateTitle(post.title),
-        body: this.truncateContent(post.content),
+        title: 'Urgent Alert',
+        body: this.truncateContent(post.title),
         relevance: post.relevance,
         categories: post.categories,
         url: post.url,
@@ -114,8 +114,8 @@ export class PushService {
         postId: event.uuid, // Using event UUID as identifier
         relevance: averageRelevance,
         categories: [], // Events don't have specific categories
-        title: `${event.status === 'created' ? 'New Event' : 'Event Updated'}: ${this.truncateTitle(event.title)}`,
-        body: this.truncateContent(event.summary),
+        title: event.status === 'created' ? 'Monitor Alert' : 'Monitor Update',
+        body: this.truncateContent(event.title),
         badge: 1,
       }),
       {
@@ -318,20 +318,10 @@ export class PushService {
   }
 
   /**
-   * Truncates title to maximum length with ellipsis.
-   */
-  private truncateTitle(title: string): string {
-    const maxLength = 60;
-    return title.length > maxLength
-      ? `${title.substring(0, maxLength)}...`
-      : title;
-  }
-
-  /**
    * Truncates content to maximum length, removing HTML tags.
    */
   private truncateContent(content: string): string {
-    const maxLength = 100;
+    const maxLength = 200;
     const plainText = content
       .replace(/<[^>]*>/g, '')
       .replace(/\s+/g, ' ')
