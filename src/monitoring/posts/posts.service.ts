@@ -41,22 +41,27 @@ export class PostsService {
   ) {}
 
   /**
-   * Retrieves posts created within the last three hours, filtered by the provided category slugs.
+   * Retrieves posts with cursor-based pagination and category filtering.
    *
-   * @param categorySlugs - An array of category slugs to filter the posts by. If empty, no category filtering is applied.
-   * @returns A promise that resolves to an array of `PostResponseDto` objects, each representing a post and its associated categories.
-   *
-   * The returned posts are ordered by creation date in descending order.
+   * @param params - Object containing filtering and pagination parameters
+   * @param params.categorySlugs - Array of category slugs to filter by. If empty, no category filtering is applied.
+   * @param params.limit - Maximum number of posts to return
+   * @param params.before - Optional timestamp cursor; returns posts with posted_at < before
+   * @returns A promise that resolves to an array of `PostResponseDto` objects, ordered by posted_at DESC.
    */
-  async getPostsByCategories(
-    categorySlugs: string[],
-  ): Promise<PostResponseDto[]> {
-    const halfDayAgo = new Date(Date.now() - 60 * 60 * 1000 * 6);
+  async getPosts(params: {
+    categorySlugs: string[];
+    limit: number;
+    before?: Date;
+  }): Promise<PostResponseDto[]> {
+    const { categorySlugs, limit, before } = params;
 
     const whereClause = {
-      createdAt: {
-        [Op.gte]: halfDayAgo,
-      },
+      ...(before && {
+        posted_at: {
+          [Op.lt]: before,
+        },
+      }),
       ...(categorySlugs.length > 0 && {
         '$categories_relation.slug$': {
           [Op.in]: categorySlugs,
@@ -73,7 +78,8 @@ export class PostsService {
           attributes: ['slug'],
         },
       ],
-      order: [['createdAt', 'DESC']],
+      order: [['posted_at', 'DESC']],
+      limit,
       attributes: [
         'uuid',
         'content',
@@ -116,6 +122,24 @@ export class PostsService {
       categories:
         post.categories_relation?.map((category) => category.slug) || [],
     }));
+  }
+
+  /**
+   * Retrieves posts created within the last six hours, filtered by the provided category slugs.
+   * This method is kept for backward compatibility and delegates to getPosts.
+   *
+   * @param categorySlugs - An array of category slugs to filter the posts by. If empty, no category filtering is applied.
+   * @returns A promise that resolves to an array of `PostResponseDto` objects, each representing a post and its associated categories.
+   *
+   * The returned posts are ordered by posted_at in descending order.
+   */
+  async getPostsByCategories(
+    categorySlugs: string[],
+  ): Promise<PostResponseDto[]> {
+    return await this.getPosts({
+      categorySlugs,
+      limit: 50,
+    });
   }
 
   /**

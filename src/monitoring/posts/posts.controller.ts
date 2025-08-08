@@ -25,7 +25,25 @@ export class PostsController {
     const categories =
       query.categories?.split(',').map((cat) => cat.trim()) || [];
 
-    return await this.postsService.getPostsByCategories(categories);
+    // Validate and set limit (default 50, max 50, min 1)
+    const limit = query.limit !== undefined && query.limit !== null
+      ? Math.min(Math.max(1, query.limit), 50)
+      : 50;
+
+    // Parse before timestamp if provided
+    let before: Date | undefined;
+    if (query.before) {
+      before = new Date(query.before);
+      if (isNaN(before.getTime())) {
+        before = undefined; // Invalid timestamp, ignore
+      }
+    }
+
+    return await this.postsService.getPosts({
+      categorySlugs: categories,
+      limit,
+      before,
+    });
   }
 
   @Post('similar')

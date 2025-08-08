@@ -45,9 +45,13 @@ export interface PostResponseDto {
  * Data Transfer Object for querying posts.
  *
  * @property categories - (Optional) A comma-separated list of category identifiers to filter the posts.
+ * @property limit - (Optional) Maximum number of posts to return (default: 50, max: 50).
+ * @property before - (Optional) ISO 8601 timestamp; return posts with posted_at < before.
  */
 export interface GetPostsQueryDto {
   categories?: string;
+  limit?: number;
+  before?: string;
 }
 
 /**
