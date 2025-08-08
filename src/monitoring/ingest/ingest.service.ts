@@ -88,11 +88,26 @@ export class IngestService {
     limit: number = 5,
   ): Promise<any[]> {
     try {
+      // Calculate the timestamp for 24 hours ago
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      const oneDayAgoIso = oneDayAgo.toISOString();
+
       const searchResult = await this.qdrantClient.search(this.collectionName, {
         vector: embedding,
         limit,
         with_payload: true,
         with_vector: true, // Include the actual vector embeddings
+        filter: {
+          must: [
+            {
+              range: {
+                key: 'createdAt',
+                gte: oneDayAgoIso,
+              },
+            },
+          ],
+        },
       });
 
       return searchResult.map((result) => ({
