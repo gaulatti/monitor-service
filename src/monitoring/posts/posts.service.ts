@@ -125,7 +125,7 @@ export class PostsService {
   }
 
   /**
-   * Retrieves posts created within the last six hours, filtered by the provided category slugs.
+   * Retrieves posts filtered by the provided category slugs, with a default limit of 50.
    * This method is kept for backward compatibility and delegates to getPosts.
    *
    * @param categorySlugs - An array of category slugs to filter the posts by. If empty, no category filtering is applied.
