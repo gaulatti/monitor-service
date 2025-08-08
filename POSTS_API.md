@@ -6,16 +6,18 @@ This document describes the Content Ingestion API endpoints for the monitoring s
 
 ### GET /posts
 
-Retrieves the 30 most recent ingested content items, optionally filtered by categories.
+Retrieves the most recent ingested content items with cursor-based pagination, optionally filtered by categories.
 
 #### Query Parameters
 
 - `categories` (optional): Comma-separated list of category slugs to filter content
+- `limit` (optional): Maximum number of posts to return (default: 50, max: 50)
+- `before` (optional): ISO 8601 timestamp; return posts with posted_at < before (for pagination)
 
 #### Examples
 
 ```bash
-# Get all recent ingested content
+# Get the 50 most recent ingested content items
 GET /posts
 
 # Get content from specific categories
@@ -23,6 +25,15 @@ GET /posts?categories=breaking,tech
 
 # Get content from a single category
 GET /posts?categories=politics
+
+# Get 20 most recent posts
+GET /posts?limit=20
+
+# Get posts older than a specific timestamp (pagination)
+GET /posts?before=2025-01-15T10:30:00.000Z
+
+# Combine category filter with pagination
+GET /posts?categories=world&before=2025-01-15T10:30:00.000Z&limit=30
 ```
 
 ### GET /posts/similar
@@ -154,8 +165,9 @@ The vector database can be configured using environment variables:
 
 #### Response Details
 
-- **Limit**: Maximum 30 content items returned
+- **Limit**: Maximum 50 content items returned (default: 50)
 - **Ordering**: Content is sorted by `posted_at` in descending order (newest first)
+- **Pagination**: Use the `before` parameter with the `posted_at` value of the last item to get the next page
 - **Filtering**: If categories are specified, only content tagged with **any** of the specified categories are returned
 - **Categories**: Each content item includes an array of category slugs it's tagged with
 - **Source**: Each item includes the original source platform (e.g., twitter, bluesky, etc.)
@@ -199,8 +211,9 @@ The service uses Sequelize to perform the following operations:
 1. **Content Retrieval**: Fetches ingested content with their associated categories using JOINs
 2. **Category Filtering**: Uses `Op.in` operator to filter by multiple category slugs
 3. **Ordering**: Orders by `posted_at` DESC to get most recent content first
-4. **Limiting**: Limits results to 30 content items
-5. **Attribute Selection**: Only selects required fields for performance
+4. **Pagination**: Uses cursor-based pagination with `posted_at < before` for efficient time-based traversal
+5. **Limiting**: Limits results to a maximum of 50 content items
+6. **Attribute Selection**: Only selects required fields for performance
 
 ## Error Handling
 
