@@ -38,4 +38,4 @@ EXPOSE ${HTTP_PORT}
 EXPOSE ${GRPC_PORT}
 
 # Start the server as the default command
-CMD ["node", "dist/main"]
+CMD ["node", "dist/src/main"]
