@@ -306,12 +306,6 @@ export class IngestService {
   ): Promise<Post> {
     // Use real embeddings from the ingest data
     const embedding = ingestData.embeddings || [];
-    console.log('DEBUG: embedding length:', embedding.length);
-    console.log(
-      'DEBUG: ingestData.embeddings exists:',
-      !!ingestData.embeddings,
-    );
-    console.log('DEBUG: first few embedding values:', embedding.slice(0, 3));
 
     // Find similar posts and check for duplicates if embeddings are available
     let similarPosts: any[] = [];
@@ -422,14 +416,8 @@ export class IngestService {
     const postData = finalPost.toJSON();
 
     // Attach embeddings and similar posts to the plain object
-    console.log('DEBUG: About to attach embeddings, length:', embedding.length);
     if (embedding.length > 0) {
       (postData as any).embeddings = embedding;
-      console.log('DEBUG: Embeddings attached to postData');
-      console.log(
-        'DEBUG: postData.embeddings length:',
-        (postData as any).embeddings?.length,
-      );
     } else {
       console.log('DEBUG: No embeddings to attach (length is 0)');
     }
@@ -445,9 +433,6 @@ export class IngestService {
       hash: similar.hash,
       embeddings: similar.embeddings, // Include embeddings for second pass similarity
     }));
-    console.log('DEBUG: Similar posts attached:', similarPosts.length);
-
-    console.log(JSON.stringify(postData, null, 2));
 
     return postData as any;
   }
