@@ -7,6 +7,7 @@ import { EventsController } from './events/events.controller';
 import { EventsService } from './events/events.service';
 import { IngestController } from './ingest/ingest.controller';
 import { IngestService } from './ingest/ingest.service';
+import { BackfillService } from './posts/backfill.service';
 import { PostsController } from './posts/posts.controller';
 import { PostsService } from './posts/posts.service';
 
@@ -16,7 +17,7 @@ import { PostsService } from './posts/posts.service';
     DalModule,
     SequelizeModule.forFeature([Event, Post, Match]),
   ],
-  providers: [IngestService, PostsService, EventsService],
+  providers: [IngestService, PostsService, EventsService, BackfillService],
   controllers: [IngestController, PostsController, EventsController],
 })
 export class MonitoringModule {}

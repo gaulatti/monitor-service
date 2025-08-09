@@ -8,6 +8,7 @@ import {
   SimilaritySearchResultDto,
 } from 'src/dto';
 import { IngestService } from '../ingest/ingest.service';
+import { BackfillService } from './backfill.service';
 import { PostsService } from './posts.service';
 
 @Controller('posts')
@@ -15,6 +16,7 @@ export class PostsController {
   constructor(
     private readonly postsService: PostsService,
     private readonly ingestService: IngestService,
+    private readonly backfillService: BackfillService,
   ) {}
 
   @Get()
@@ -115,5 +117,23 @@ export class PostsController {
   @Public()
   async dedup(@Body() body: DedupRequestDto) {
     return await this.postsService.dedupPosts(body);
+  }
+
+  @Post('backfill')
+  @Public()
+  async backfill(): Promise<{
+    scanned: number;
+    missing: number;
+    processed: number;
+    skipped: number;
+    duration_ms: number;
+    items: Array<{
+      postId: number;
+      stored: boolean;
+      reason?: string;
+      similarCount?: number;
+    }>;
+  }> {
+    return await this.backfillService.run();
   }
 }
