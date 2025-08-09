@@ -169,10 +169,7 @@ export class IngestService {
   /**
    * Stores post vector in Qdrant.
    */
-  private async storePostVector(
-    post: Post,
-    embedding: number[],
-  ): Promise<void> {
+  public async storePostVector(post: Post, embedding: number[]): Promise<void> {
     // TODO: Optionally make expected dimension configurable (env var / dynamic collection schema fetch)
     const expected = 384;
     if (embedding.length !== expected) {
