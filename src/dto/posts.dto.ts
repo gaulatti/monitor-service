@@ -79,10 +79,42 @@ export interface SimilaritySearchResultDto {
 }
 
 /**
+ * Author information for a post.
+ */
+export interface AuthorDto {
+  id: string | null;
+  name: string;
+  handle: string;
+  avatar: string;
+}
+
+/**
+ * Incoming post data for deduplication and processing.
+ */
+export interface IncomingPostDto {
+  id: string;
+  source: string;
+  uri: string;
+  content: string;
+  createdAt: string;
+  relevance: number | null;
+  lang: string | null;
+  author: AuthorDto;
+  tags: string[];
+  media: string[];
+  linkPreview: string;
+  score: number | null;
+  scores: number[];
+  categories: string[];
+  labels: string[];
+  hash: string;
+}
+
+/**
  * Data Transfer Object for deduplication requests.
  *
- * @property input - An array of strings to be deduplicated.
+ * @property input - An array of post objects to be deduplicated.
  */
 export interface DedupRequestDto {
-  input: string[];
+  input: IncomingPostDto[];
 }

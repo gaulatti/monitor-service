@@ -26,9 +26,10 @@ export class PostsController {
       query.categories?.split(',').map((cat) => cat.trim()) || [];
 
     // Validate and set limit (default 50, max 50, min 1)
-    const limit = query.limit !== undefined && query.limit !== null
-      ? Math.min(Math.max(1, query.limit), 50)
-      : 50;
+    const limit =
+      query.limit !== undefined && query.limit !== null
+        ? Math.min(Math.max(1, query.limit), 50)
+        : 50;
 
     // Parse before timestamp if provided
     let before: Date | undefined;

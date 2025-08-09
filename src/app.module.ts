@@ -34,6 +34,7 @@ const secretsManager = new SecretsManagerClient();
           port: +3306,
           models: [join(__dirname, '**/*.model.ts')],
           autoLoadModels: true,
+          logging: false,
         };
 
         if (configService.get('USE_LOCAL_DATABASE') === 'true') {

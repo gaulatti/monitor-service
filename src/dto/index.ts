@@ -1,8 +1,10 @@
 export { IngestDto } from './ingest.dto';
 export { NotificationPayload } from './notifications.dto';
 export {
+  AuthorDto,
   DedupRequestDto,
   GetPostsQueryDto as GetIngestsQueryDto,
+  IncomingPostDto,
   PostResponseDto,
   SimilaritySearchQueryDto,
   SimilaritySearchResultDto,

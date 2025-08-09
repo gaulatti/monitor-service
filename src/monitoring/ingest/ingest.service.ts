@@ -1,15 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/sequelize';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import axios from 'axios';
 import { NotificationsService } from 'src/core/notifications/notifications.service';
+import { QdrantService } from 'src/dal/qdrant/qdrant.service';
 import { Logger } from 'src/decorators/logger.decorator';
 import { IngestDto } from 'src/dto';
 import { Category, Post } from 'src/models';
 import { JSONLogger } from 'src/utils/logger';
 import { nanoid } from 'src/utils/nanoid';
-import { Cron } from '@nestjs/schedule';
-import { QdrantService } from 'src/dal/qdrant/qdrant.service';
 
 /**
  * Service responsible for ingesting, processing, and monitoring content within the application.
@@ -55,6 +55,12 @@ export class IngestService {
   private readonly similarityThreshold = 0.85;
 
   /**
+   * Time window in hours to constrain similarity search (can be overridden with SIMILAR_TIME_WINDOW_HOURS env var).
+   * If set to 0 or negative, no time filtering will be applied.
+   */
+  private readonly searchTimeWindowHours = 24;
+
+  /**
    * TODO: Define this in the UI.
    */
   private readonly seeds = new Set(['chile', 'new york', 'weather', 'zohran']);
@@ -87,28 +93,59 @@ export class IngestService {
     embedding: number[],
     limit: number = 5,
   ): Promise<any[]> {
-    try {
-      // Calculate the timestamp for 24 hours ago
-      const oneDayAgo = new Date();
-      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-      const oneDayAgoIso = oneDayAgo.toISOString();
+    const appliedWindow = Number(
+      process.env.SIMILAR_TIME_WINDOW_HOURS ?? this.searchTimeWindowHours,
+    );
 
-      const searchResult = await this.qdrantClient.search(this.collectionName, {
+    const mustFilters: any[] = [];
+    let windowTs: number | undefined;
+    if (appliedWindow > 0) {
+      const since = Date.now() - appliedWindow * 60 * 60 * 1000;
+      windowTs = since;
+      // Correct Qdrant filter shape: { key, range: { gte } }
+      mustFilters.push({
+        key: 'createdAtTs',
+        range: { gte: windowTs },
+      });
+    }
+
+    const baseSearch = async (withFilter: boolean) => {
+      return this.qdrantClient.search(this.collectionName, {
         vector: embedding,
         limit,
         with_payload: true,
-        with_vector: true, // Include the actual vector embeddings
-        filter: {
-          must: [
-            {
-              range: {
-                key: 'createdAt',
-                gte: oneDayAgoIso,
-              },
-            },
-          ],
-        },
+        with_vector: true,
+        ...(withFilter && mustFilters.length > 0
+          ? { filter: { must: mustFilters } }
+          : {}),
       });
+    };
+
+    try {
+      const start = Date.now();
+      let searchResult = await baseSearch(true);
+      this.logger.log('Similarity search executed', {
+        collection: this.collectionName,
+        vectorLength: embedding.length,
+        limit,
+        appliedWindowHours: appliedWindow,
+        windowTs,
+        resultCount: searchResult.length,
+        durationMs: Date.now() - start,
+        filtered: true,
+      });
+
+      // Fallback: if nothing found with time filter, retry without it (only if a filter was applied)
+      if (searchResult.length === 0 && appliedWindow > 0) {
+        const fallbackStart = Date.now();
+        const fallback = await baseSearch(false);
+        this.logger.log('Similarity fallback (no time filter)', {
+          previousWindowHours: appliedWindow,
+          fallbackCount: fallback.length,
+          durationMs: Date.now() - fallbackStart,
+        });
+        searchResult = fallback;
+      }
 
       return searchResult.map((result) => ({
         id: result.id,
@@ -118,10 +155,13 @@ export class IngestService {
         source: result.payload?.source,
         createdAt: result.payload?.createdAt,
         hash: result.payload?.hash,
-        embeddings: result.vector, // Include the embeddings for second pass similarity
+        embeddings: result.vector,
       }));
-    } catch (error) {
-      this.logger.error('Failed to search similar posts:', error);
+    } catch (error: any) {
+      this.logger.error('Failed to search similar posts', '', {
+        error: error?.message,
+        stack: error?.stack,
+      });
       return [];
     }
   }
@@ -133,13 +173,24 @@ export class IngestService {
     post: Post,
     embedding: number[],
   ): Promise<void> {
-    if (embedding.length !== 384) {
+    // TODO: Optionally make expected dimension configurable (env var / dynamic collection schema fetch)
+    const expected = 384;
+    if (embedding.length !== expected) {
       this.logger.warn('Invalid embedding dimensions', {
         uuid: post.uuid,
-        expectedDimensions: 384,
+        expectedDimensions: expected,
         actualDimensions: embedding.length,
       });
       return;
+    }
+
+    // Normalize createdAt to an ISO string (guard against invalid dates)
+    let createdAtIso: string;
+    try {
+      createdAtIso = post.createdAt?.toISOString();
+      if (!createdAtIso) throw new Error('Empty createdAt');
+    } catch {
+      createdAtIso = new Date().toISOString();
     }
 
     const pointData = {
@@ -149,19 +200,26 @@ export class IngestService {
         uuid: post.uuid,
         content: post.content?.substring(0, 500) || '',
         source: post.source || '',
-        createdAt: post.createdAt?.toISOString() || new Date().toISOString(),
+        createdAt: createdAtIso,
+        createdAtTs: Date.parse(createdAtIso),
         hash: post.hash || '',
       },
     };
 
     try {
+      const upsertStart = Date.now();
       await this.qdrantClient.upsert(this.collectionName, {
         points: [pointData],
       });
-    } catch (error) {
+      this.logger.log('Stored post vector', {
+        uuid: post.uuid,
+        durationMs: Date.now() - upsertStart,
+        createdAt: createdAtIso,
+      });
+    } catch (error: any) {
       this.logger.error('Failed to store post vector in Qdrant', '', {
         uuid: post.uuid,
-        error: error.message,
+        error: error?.message,
       });
     }
   }
@@ -295,13 +353,22 @@ export class IngestService {
       categoryModels.push(category);
     }
 
+    // Normalize createdAt input; if invalid or older than 7 days, clamp to now for vector search relevance
+    let parsedCreatedAt = new Date(ingestData.createdAt);
+    if (isNaN(parsedCreatedAt.getTime())) {
+      this.logger.warn('Invalid ingest createdAt provided, using now()', {
+        raw: ingestData.createdAt,
+      });
+      parsedCreatedAt = new Date();
+    }
+
     const post = await this.postModel.create({
       uuid: nanoid(),
       source_id: ingestData.id,
       source: ingestData.source,
       uri: ingestData.uri,
       content: ingestData.content,
-      createdAt: new Date(ingestData.createdAt),
+      createdAt: parsedCreatedAt,
       relevance: ingestData.relevance,
       lang: ingestData.lang,
       hash: ingestData.hash,
@@ -312,12 +379,11 @@ export class IngestService {
       media: ingestData.media,
       linkPreview: ingestData.linkPreview,
       original: ingestData.original,
-
       /**
        * Legacy fields for backward compatibility
        */
       author: ingestData.author.name,
-      posted_at: new Date(ingestData.createdAt),
+      posted_at: parsedCreatedAt,
       received_at: new Date(),
     } as any);
 
@@ -368,20 +434,18 @@ export class IngestService {
       console.log('DEBUG: No embeddings to attach (length is 0)');
     }
 
-    // Attach similar posts to the response
-    if (similarPosts.length > 0) {
-      (postData as any).similarPosts = similarPosts.map((similar) => ({
-        id: similar.id,
-        uuid: similar.uuid,
-        score: similar.score,
-        content: similar.content, // Full content without truncation
-        source: similar.source,
-        createdAt: similar.createdAt,
-        hash: similar.hash,
-        embeddings: similar.embeddings, // Include embeddings for second pass similarity
-      }));
-      console.log('DEBUG: Similar posts attached:', similarPosts.length);
-    }
+    // Always attach similar posts array (even if empty) for consistency
+    (postData as any).similarPosts = similarPosts.map((similar) => ({
+      id: similar.id,
+      uuid: similar.uuid,
+      score: similar.score,
+      content: similar.content, // Full content without truncation
+      source: similar.source,
+      createdAt: similar.createdAt,
+      hash: similar.hash,
+      embeddings: similar.embeddings, // Include embeddings for second pass similarity
+    }));
+    console.log('DEBUG: Similar posts attached:', similarPosts.length);
 
     console.log(JSON.stringify(postData, null, 2));
 
@@ -515,52 +579,64 @@ export class IngestService {
   /**
    * Processes the incoming data and updates the topics queue with keywords.
    *
-   * @param data - The delivery request containing the payload (object or array).
+   * @param data - The delivery request containing the payload (object or array of objects).
    */
-  async receive(data: any) {
-    // Process keywords if they exist (this is optional)
-    if (data?.keywords) {
-      data.keywords.forEach((keyword: string) => {
-        const key = keyword.toLowerCase();
-        const currentValue = this.topicsQueue.get(key) || 0;
-        const newValue = currentValue + 1;
-        this.topicsQueue.set(key, newValue);
-      });
-    }
+  async receive(data: unknown): Promise<unknown> {
+    // Handle both single object and array of objects
+    const items = Array.isArray(data) ? data : [data];
 
-    try {
-      // Extract categories from multiple sources
-      let categories = data.categories || [];
+    const results: any[] = [];
 
-      // If no categories in the root, try to extract from classification results
-      if (
-        categories.length === 0 &&
-        data._vote?.content_classification?.full_result?.labels
-      ) {
-        // Use top 3 categories from classification results with scores above threshold
-        const classificationResults =
-          data._vote.content_classification.full_result;
-        const threshold = 0.1; // Minimum score threshold
-
-        categories = classificationResults.labels
-          .slice(0, 5) // Take top 5 labels
-          .filter(
-            (_, index) => classificationResults.scores[index] >= threshold,
-          )
-          .slice(0, 3); // Limit to top 3 categories
-
-        this.logger.log(`Extracted categories from classification`, {
-          uuid: data.id,
-          originalCategories: data.categories,
-          extractedCategories: categories,
-          classificationScores: classificationResults.scores.slice(0, 3),
+    for (const item of items) {
+      // Process keywords if they exist (this is optional)
+      if (item?.keywords) {
+        item.keywords.forEach((keyword: string) => {
+          const key = keyword.toLowerCase();
+          const currentValue = this.topicsQueue.get(key) || 0;
+          const newValue = currentValue + 1;
+          this.topicsQueue.set(key, newValue);
         });
       }
 
-      return this.savePost(data, categories);
-    } catch (error) {
-      this.logger.error(`Error processing ingest ${data.id}:`, error);
-      throw error; // Re-throw the error so the controller can handle it properly
+      try {
+        // Extract categories from multiple sources
+        let categories = item.categories || [];
+
+        // If no categories in the root, try to extract from classification results
+        if (
+          categories.length === 0 &&
+          item._vote?.content_classification?.full_result?.labels
+        ) {
+          // Use top 3 categories from classification results with scores above threshold
+          const classificationResults =
+            item._vote.content_classification.full_result;
+          const threshold = 0.1; // Minimum score threshold
+
+          categories = classificationResults.labels
+            .slice(0, 5) // Take top 5 labels
+            .filter(
+              (_, index) => classificationResults.scores[index] >= threshold,
+            )
+            .slice(0, 3); // Limit to top 3 categories
+
+          this.logger.log(`Extracted categories from classification`, {
+            uuid: item.id,
+            originalCategories: item.categories,
+            extractedCategories: categories,
+            classificationScores: classificationResults.scores.slice(0, 3),
+          });
+        }
+
+        const result = await this.savePost(item, categories);
+        results.push(result);
+      } catch (error) {
+        this.logger.error(`Error processing ingest ${item.id}:`, error);
+        // Continue processing other items even if one fails
+        results.push({ error: error.message, id: item.id });
+      }
     }
+
+    // Return single result if input was single object, array if input was array
+    return Array.isArray(data) ? results : results[0];
   }
 }

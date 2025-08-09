@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { Logger } from 'src/decorators/logger.decorator';
-import { PostResponseDto } from 'src/dto';
+import { PostResponseDto, IncomingPostDto } from 'src/dto';
 import { Category, Post, Tagging } from 'src/models';
 import { JSONLogger } from 'src/utils/logger';
 
@@ -19,7 +19,7 @@ import { JSONLogger } from 'src/utils/logger';
  * @example
  * ```typescript
  * const posts = await postsService.getPostsByCategories(['news', 'tech']);
- * const duplicates = await postsService.dedupPosts({ input: ['hash1', 'hash2'] });
+ * const duplicates = await postsService.dedupPosts({ input: [postObject1, postObject2] });
  * ```
  *
  * @see Post
@@ -143,15 +143,22 @@ export class PostsService {
   }
 
   /**
-   * Checks which of the provided post hashes already exist in the database.
+   * Checks which of the provided post objects already exist in the database by their hash.
    *
-   * @param body - An object containing an array of post hashes to check for duplicates.
+   * @param body - An object containing an array of post objects to check for duplicates.
    * @returns A promise that resolves to an array of hashes that already exist in the database.
    */
-  async dedupPosts(body: { input: string[] }): Promise<string[]> {
-    const { input: hashes } = body;
+  async dedupPosts(body: { input: IncomingPostDto[] }): Promise<string[]> {
+    const { input: posts } = body;
 
-    if (!hashes || !Array.isArray(hashes)) {
+    if (!posts || !Array.isArray(posts)) {
+      return [];
+    }
+
+    // Extract hashes from the post objects
+    const hashes = posts.map((post) => post.hash).filter((hash) => hash);
+
+    if (hashes.length === 0) {
       return [];
     }
 
